@@ -4,7 +4,7 @@ import { useAuth } from '@/context/AuthContext'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export type MealType = 'breakfast' | 'lunch' | 'dinner'
+export type MealType = string   // any string — 'breakfast' | 'lunch' | 'dinner' | custom
 
 export type Meal = {
   id: string
@@ -12,13 +12,13 @@ export type Meal = {
   note?: string
 }
 
-export type DayPlan = Partial<Record<MealType, Meal>>
+export type DayPlan = Record<string, Meal>
 export type WeekPlan = Record<string, DayPlan> // key: "YYYY-MM-DD"
 
 type MealRow = {
   id: string
   date: string
-  meal_type: MealType
+  meal_type: string
   name: string
   note: string | null
 }
