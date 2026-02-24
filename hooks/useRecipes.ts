@@ -52,7 +52,10 @@ export function useRecipes(familyId: string | null) {
     const fnUrl = `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/parse-recipe`
     const fnRes = await fetch(fnUrl, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`,
+      },
       body: JSON.stringify({ url }),
     })
     const resText = await fnRes.text()
@@ -95,6 +98,40 @@ export function useRecipes(familyId: string | null) {
     return recipe
   }
 
+  async function saveManualRecipe(fields: {
+    title: string
+    image_url?: string
+    ingredients: string[]
+    instructions: string[]
+    servings?: string
+    prep_time?: string
+    cook_time?: string
+  }): Promise<Recipe | null> {
+    if (!session) return null
+    setError(null)
+
+    const { data: saved, error: dbError } = await supabase
+      .from('recipes')
+      .insert({
+        user_id:      session.user.id,
+        family_id:    familyId ?? null,
+        title:        fields.title,
+        image_url:    fields.image_url ?? null,
+        ingredients:  fields.ingredients,
+        instructions: fields.instructions,
+        servings:     fields.servings ?? null,
+        prep_time:    fields.prep_time ?? null,
+        cook_time:    fields.cook_time ?? null,
+      })
+      .select('*')
+      .single()
+
+    if (dbError) { setError(dbError.message); return null }
+    const recipe = saved as Recipe
+    setRecipes(prev => [recipe, ...prev])
+    return recipe
+  }
+
   async function deleteRecipe(id: string) {
     setRecipes(prev => prev.filter(r => r.id !== id))
     const { error } = await supabase.from('recipes').delete().eq('id', id)
@@ -121,5 +158,5 @@ export function useRecipes(familyId: string | null) {
     return data?.length ?? 0
   }
 
-  return { recipes, loading, importing, error, importRecipe, deleteRecipe, addIngredientsToShoppingList }
+  return { recipes, loading, importing, error, importRecipe, saveManualRecipe, deleteRecipe, addIngredientsToShoppingList }
 }

@@ -20,6 +20,128 @@ import { useFamily } from '@/hooks/useFamily'
 const LIGHT = { bg: '#f8fafc', card: '#fff', text: '#0f172a', muted: '#94a3b8', border: '#e2e8f0' }
 const DARK  = { bg: '#0f172a', card: '#1e293b', text: '#f1f5f9', muted: '#64748b', border: '#334155' }
 
+// ─── Manual add / edit recipe modal ──────────────────────────────────────────
+
+function ManualRecipeModal({ visible, onClose, onSave, c, prefillUrl }: {
+  visible: boolean
+  onClose: () => void
+  onSave: (fields: {
+    title: string; image_url: string; ingredients: string[]
+    instructions: string[]; servings: string; prep_time: string; cook_time: string
+  }) => Promise<void>
+  c: typeof LIGHT
+  prefillUrl?: string
+}) {
+  const [title, setTitle]           = useState('')
+  const [imageUrl, setImageUrl]     = useState('')
+  const [ingredients, setIngredients] = useState('')
+  const [instructions, setInstructions] = useState('')
+  const [servings, setServings]     = useState('')
+  const [prepTime, setPrepTime]     = useState('')
+  const [cookTime, setCookTime]     = useState('')
+  const [saving, setSaving]         = useState(false)
+
+  // Reset form when modal opens
+  const wasVisible = useState(false)
+  if (visible && !wasVisible[0]) { wasVisible[1](true) }
+  if (!visible && wasVisible[0]) {
+    wasVisible[1](false)
+    setTitle(''); setImageUrl(''); setIngredients(''); setInstructions('')
+    setServings(''); setPrepTime(''); setCookTime('')
+  }
+
+  async function handleSave() {
+    if (!title.trim()) return
+    setSaving(true)
+    await onSave({
+      title:        title.trim(),
+      image_url:    imageUrl.trim(),
+      ingredients:  ingredients.split('\n').map(s => s.trim()).filter(Boolean),
+      instructions: instructions.split('\n').map(s => s.trim()).filter(Boolean),
+      servings:     servings.trim(),
+      prep_time:    prepTime.trim(),
+      cook_time:    cookTime.trim(),
+    })
+    setSaving(false)
+  }
+
+  const inputStyle = [manualModal.input, { borderColor: c.border, color: c.text, backgroundColor: c.bg }]
+
+  return (
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+      <View style={[manualModal.container, { backgroundColor: c.bg }]}>
+        <View style={[manualModal.header, { borderBottomColor: c.border }]}>
+          <TouchableOpacity onPress={onClose} style={manualModal.closeBtn}>
+            <FontAwesome name="chevron-down" size={16} color={c.muted} />
+          </TouchableOpacity>
+          <Text style={[manualModal.headerTitle, { color: c.text }]}>Add Recipe Manually</Text>
+          <TouchableOpacity
+            onPress={handleSave}
+            disabled={!title.trim() || saving}
+            style={[manualModal.saveBtn, (!title.trim() || saving) && { opacity: 0.4 }]}
+          >
+            {saving
+              ? <ActivityIndicator color="#fff" size="small" />
+              : <Text style={manualModal.saveBtnText}>Save</Text>
+            }
+          </TouchableOpacity>
+        </View>
+
+        <ScrollView contentContainerStyle={manualModal.scroll} keyboardShouldPersistTaps="handled">
+          <Text style={[manualModal.label, { color: c.muted }]}>Title *</Text>
+          <TextInput style={inputStyle} value={title} onChangeText={setTitle}
+            placeholder="e.g. Chicken Tikka Masala" placeholderTextColor={c.muted} />
+
+          <Text style={[manualModal.label, { color: c.muted }]}>Image URL (optional)</Text>
+          <TextInput style={inputStyle} value={imageUrl} onChangeText={setImageUrl}
+            placeholder="https://…" placeholderTextColor={c.muted}
+            autoCapitalize="none" autoCorrect={false} keyboardType="url" />
+
+          <View style={manualModal.row}>
+            <View style={{ flex: 1 }}>
+              <Text style={[manualModal.label, { color: c.muted }]}>Prep time</Text>
+              <TextInput style={inputStyle} value={prepTime} onChangeText={setPrepTime}
+                placeholder="15 min" placeholderTextColor={c.muted} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[manualModal.label, { color: c.muted }]}>Cook time</Text>
+              <TextInput style={inputStyle} value={cookTime} onChangeText={setCookTime}
+                placeholder="30 min" placeholderTextColor={c.muted} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[manualModal.label, { color: c.muted }]}>Servings</Text>
+              <TextInput style={inputStyle} value={servings} onChangeText={setServings}
+                placeholder="4" placeholderTextColor={c.muted} />
+            </View>
+          </View>
+
+          <Text style={[manualModal.label, { color: c.muted }]}>Ingredients (one per line)</Text>
+          <TextInput
+            style={[inputStyle, manualModal.multiline]}
+            value={ingredients}
+            onChangeText={setIngredients}
+            placeholder={"2 cups flour\n1 tsp salt\n…"}
+            placeholderTextColor={c.muted}
+            multiline
+            textAlignVertical="top"
+          />
+
+          <Text style={[manualModal.label, { color: c.muted }]}>Instructions (one step per line)</Text>
+          <TextInput
+            style={[inputStyle, manualModal.multiline]}
+            value={instructions}
+            onChangeText={setInstructions}
+            placeholder={"Preheat oven to 350°F\nMix dry ingredients\n…"}
+            placeholderTextColor={c.muted}
+            multiline
+            textAlignVertical="top"
+          />
+        </ScrollView>
+      </View>
+    </Modal>
+  )
+}
+
 // ─── Recipe detail modal ──────────────────────────────────────────────────────
 
 function RecipeModal({ recipe, onClose, onAddToList, c }: {
@@ -180,17 +302,30 @@ export default function RecipesScreen() {
   const scheme = useColorScheme()
   const c = scheme === 'dark' ? DARK : LIGHT
   const { family } = useFamily()
-  const { recipes, loading, importing, error, importRecipe, deleteRecipe, addIngredientsToShoppingList } =
+  const { recipes, loading, importing, error, importRecipe, saveManualRecipe, deleteRecipe, addIngredientsToShoppingList } =
     useRecipes(family?.id ?? null)
 
   const [url, setUrl] = useState('')
   const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null)
+  const [manualOpen, setManualOpen] = useState(false)
 
   async function handleImport() {
     const trimmed = url.trim()
     if (!trimmed) return
     const recipe = await importRecipe(trimmed)
     if (recipe) {
+      setUrl('')
+      setSelectedRecipe(recipe)
+    } else {
+      // Import failed — open the manual entry modal so the user can paste it themselves
+      setManualOpen(true)
+    }
+  }
+
+  async function handleSaveManual(fields: Parameters<typeof saveManualRecipe>[0]) {
+    const recipe = await saveManualRecipe(fields)
+    if (recipe) {
+      setManualOpen(false)
       setUrl('')
       setSelectedRecipe(recipe)
     }
@@ -232,6 +367,9 @@ export default function RecipesScreen() {
             : <FontAwesome name="download" size={15} color="#fff" />
           }
         </TouchableOpacity>
+        <TouchableOpacity style={styles.addManualBtn} onPress={() => setManualOpen(true)}>
+          <FontAwesome name="plus" size={15} color="#fff" />
+        </TouchableOpacity>
       </View>
 
       {importing && (
@@ -242,10 +380,14 @@ export default function RecipesScreen() {
       )}
 
       {error && (
-        <View style={[styles.banner, { backgroundColor: '#fee2e2' }]}>
+        <TouchableOpacity
+          style={[styles.banner, { backgroundColor: '#fee2e2' }]}
+          onPress={() => setManualOpen(true)}
+        >
           <FontAwesome name="exclamation-circle" size={14} color="#ef4444" />
           <Text style={[styles.bannerText, { color: '#ef4444', flex: 1 }]}>{error}</Text>
-        </View>
+          <Text style={[styles.bannerText, { color: '#ef4444', fontWeight: '700' }]}>Add manually →</Text>
+        </TouchableOpacity>
       )}
 
       {loading ? (
@@ -285,6 +427,13 @@ export default function RecipesScreen() {
           c={c}
         />
       )}
+
+      <ManualRecipeModal
+        visible={manualOpen}
+        onClose={() => setManualOpen(false)}
+        onSave={handleSaveManual}
+        c={c}
+      />
     </View>
   )
 }
@@ -301,6 +450,10 @@ const styles = StyleSheet.create({
   importBtn: {
     width: 44, height: 44, borderRadius: 10,
     backgroundColor: '#2563eb', justifyContent: 'center', alignItems: 'center',
+  },
+  addManualBtn: {
+    width: 44, height: 44, borderRadius: 10,
+    backgroundColor: '#16a34a', justifyContent: 'center', alignItems: 'center',
   },
   banner: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 10 },
   bannerText: { fontSize: 14, fontWeight: '500' },
@@ -360,4 +513,24 @@ const modal = StyleSheet.create({
   stepNumText: { color: '#fff', fontSize: 12, fontWeight: '700' },
   stepText: { flex: 1, fontSize: 15, lineHeight: 22 },
   sourceUrl: { fontSize: 12, textAlign: 'center', padding: 16 },
+})
+
+const manualModal = StyleSheet.create({
+  container: { flex: 1 },
+  header: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1,
+  },
+  closeBtn: { width: 36, alignItems: 'flex-start' },
+  headerTitle: { flex: 1, fontSize: 16, fontWeight: '700', textAlign: 'center' },
+  saveBtn: {
+    backgroundColor: '#2563eb', borderRadius: 8,
+    paddingHorizontal: 14, paddingVertical: 7, minWidth: 56, alignItems: 'center',
+  },
+  saveBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+  scroll: { padding: 16, gap: 4, paddingBottom: 48 },
+  label: { fontSize: 12, fontWeight: '600', marginBottom: 4, marginTop: 12, textTransform: 'uppercase', letterSpacing: 0.5 },
+  input: { borderWidth: 1, borderRadius: 10, padding: 10, fontSize: 15 },
+  multiline: { minHeight: 120, paddingTop: 10 },
+  row: { flexDirection: 'row', gap: 8 },
 })

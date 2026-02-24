@@ -87,7 +87,8 @@ export function useDragAndDrop(onDrop: (type: string, recipe: Recipe) => void) {
 
   const makeDragGesture = useCallback((recipe: Recipe) => {
     return Gesture.Pan()
-      .activateAfterLongPress(250)
+      .activateAfterLongPress(200)
+      .activeOffsetY([-10, 10])
       .onBegin((e) => {
         'worklet'
         isActive.value = true
