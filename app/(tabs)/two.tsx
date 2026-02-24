@@ -1,31 +1,363 @@
-import { StyleSheet } from 'react-native';
+import { useState } from 'react'
+import {
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Image,
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+  useColorScheme,
+} from 'react-native'
+import { FontAwesome } from '@expo/vector-icons'
+import { useRecipes, type Recipe } from '@/hooks/useRecipes'
+import { useFamily } from '@/hooks/useFamily'
 
-import EditScreenInfo from '@/components/EditScreenInfo';
-import { Text, View } from '@/components/Themed';
+const LIGHT = { bg: '#f8fafc', card: '#fff', text: '#0f172a', muted: '#94a3b8', border: '#e2e8f0' }
+const DARK  = { bg: '#0f172a', card: '#1e293b', text: '#f1f5f9', muted: '#64748b', border: '#334155' }
 
-export default function TabTwoScreen() {
+// ─── Recipe detail modal ──────────────────────────────────────────────────────
+
+function RecipeModal({ recipe, onClose, onAddToList, c }: {
+  recipe: Recipe
+  onClose: () => void
+  onAddToList: (recipe: Recipe) => Promise<void>
+  c: typeof LIGHT
+}) {
+  const [adding, setAdding] = useState(false)
+
+  async function handleAddToList() {
+    setAdding(true)
+    await onAddToList(recipe)
+    setAdding(false)
+  }
+
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Tab Two</Text>
-      <View style={styles.separator} lightColor="#eee" darkColor="rgba(255,255,255,0.1)" />
-      <EditScreenInfo path="app/(tabs)/two.tsx" />
-    </View>
-  );
+    <Modal visible animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+      <View style={[modal.container, { backgroundColor: c.bg }]}>
+        <View style={[modal.header, { borderBottomColor: c.border }]}>
+          <TouchableOpacity onPress={onClose} style={modal.closeBtn}>
+            <FontAwesome name="chevron-down" size={16} color={c.muted} />
+          </TouchableOpacity>
+          <Text style={[modal.headerTitle, { color: c.text }]} numberOfLines={1}>{recipe.title}</Text>
+          <View style={{ width: 36 }} />
+        </View>
+
+        <ScrollView contentContainerStyle={modal.scroll} showsVerticalScrollIndicator={false}>
+          {recipe.image_url && (
+            <Image source={{ uri: recipe.image_url }} style={modal.image} resizeMode="cover" />
+          )}
+
+          <View style={modal.section}>
+            <Text style={[modal.title, { color: c.text }]}>{recipe.title}</Text>
+            {recipe.description && (
+              <Text style={[modal.description, { color: c.muted }]}>{recipe.description}</Text>
+            )}
+            <View style={modal.metaRow}>
+              {recipe.prep_time && (
+                <View style={[modal.metaChip, { backgroundColor: c.card, borderColor: c.border }]}>
+                  <FontAwesome name="clock-o" size={12} color={c.muted} />
+                  <Text style={[modal.metaText, { color: c.muted }]}>Prep {recipe.prep_time}</Text>
+                </View>
+              )}
+              {recipe.cook_time && (
+                <View style={[modal.metaChip, { backgroundColor: c.card, borderColor: c.border }]}>
+                  <FontAwesome name="fire" size={12} color={c.muted} />
+                  <Text style={[modal.metaText, { color: c.muted }]}>Cook {recipe.cook_time}</Text>
+                </View>
+              )}
+              {recipe.servings && (
+                <View style={[modal.metaChip, { backgroundColor: c.card, borderColor: c.border }]}>
+                  <FontAwesome name="users" size={12} color={c.muted} />
+                  <Text style={[modal.metaText, { color: c.muted }]}>{recipe.servings}</Text>
+                </View>
+              )}
+            </View>
+          </View>
+
+          {recipe.ingredients.length > 0 && (
+            <TouchableOpacity
+              style={[modal.addListBtn, adding && { opacity: 0.5 }]}
+              onPress={handleAddToList}
+              disabled={adding}
+            >
+              {adding
+                ? <ActivityIndicator color="#fff" size="small" />
+                : <FontAwesome name="shopping-cart" size={14} color="#fff" />
+              }
+              <Text style={modal.addListBtnText}>
+                {adding ? 'Adding…' : `Add ${recipe.ingredients.length} ingredients to shopping list`}
+              </Text>
+            </TouchableOpacity>
+          )}
+
+          {recipe.ingredients.length > 0 && (
+            <View style={[modal.card, { backgroundColor: c.card, borderColor: c.border }]}>
+              <Text style={[modal.sectionTitle, { color: c.text }]}>Ingredients</Text>
+              {recipe.ingredients.map((ing, i) => (
+                <View key={i} style={[modal.ingredientRow, i > 0 && { borderTopWidth: 1, borderTopColor: c.border }]}>
+                  <View style={[modal.bullet, { backgroundColor: '#2563eb' }]} />
+                  <Text style={[modal.ingredientText, { color: c.text }]}>{ing}</Text>
+                </View>
+              ))}
+            </View>
+          )}
+
+          {recipe.instructions.length > 0 && (
+            <View style={[modal.card, { backgroundColor: c.card, borderColor: c.border }]}>
+              <Text style={[modal.sectionTitle, { color: c.text }]}>Instructions</Text>
+              {recipe.instructions.map((step, i) => (
+                <View key={i} style={[modal.stepRow, i > 0 && { borderTopWidth: 1, borderTopColor: c.border }]}>
+                  <View style={modal.stepNum}>
+                    <Text style={modal.stepNumText}>{i + 1}</Text>
+                  </View>
+                  <Text style={[modal.stepText, { color: c.text }]}>{step}</Text>
+                </View>
+              ))}
+            </View>
+          )}
+
+          {recipe.source_url && (
+            <Text style={[modal.sourceUrl, { color: c.muted }]} numberOfLines={1}>
+              Source: {recipe.source_url}
+            </Text>
+          )}
+        </ScrollView>
+      </View>
+    </Modal>
+  )
 }
 
+// ─── Recipe card ──────────────────────────────────────────────────────────────
+
+function RecipeCard({ recipe, onPress, onDelete, c }: {
+  recipe: Recipe
+  onPress: () => void
+  onDelete: () => void
+  c: typeof LIGHT
+}) {
+  function confirmDelete() {
+    Alert.alert('Delete recipe', `Remove "${recipe.title}"?`, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: onDelete },
+    ])
+  }
+
+  return (
+    <TouchableOpacity
+      style={[card.container, { backgroundColor: c.card, borderColor: c.border }]}
+      onPress={onPress}
+      activeOpacity={0.7}
+    >
+      {recipe.image_url && (
+        <Image source={{ uri: recipe.image_url }} style={card.image} resizeMode="cover" />
+      )}
+      <View style={card.body}>
+        <Text style={[card.title, { color: c.text }]} numberOfLines={2}>{recipe.title}</Text>
+        <View style={card.metaRow}>
+          {recipe.prep_time && <Text style={[card.meta, { color: c.muted }]}>⏱ {recipe.prep_time}</Text>}
+          {recipe.cook_time && <Text style={[card.meta, { color: c.muted }]}>🔥 {recipe.cook_time}</Text>}
+          {recipe.servings && <Text style={[card.meta, { color: c.muted }]}>👥 {recipe.servings}</Text>}
+        </View>
+        <Text style={[card.count, { color: c.muted }]}>
+          {recipe.ingredients.length} ingredients · {recipe.instructions.length} steps
+        </Text>
+      </View>
+      <TouchableOpacity onPress={confirmDelete} style={card.deleteBtn}>
+        <FontAwesome name="trash-o" size={15} color={c.muted} />
+      </TouchableOpacity>
+    </TouchableOpacity>
+  )
+}
+
+// ─── Screen ───────────────────────────────────────────────────────────────────
+
+export default function RecipesScreen() {
+  const scheme = useColorScheme()
+  const c = scheme === 'dark' ? DARK : LIGHT
+  const { family } = useFamily()
+  const { recipes, loading, importing, error, importRecipe, deleteRecipe, addIngredientsToShoppingList } =
+    useRecipes(family?.id ?? null)
+
+  const [url, setUrl] = useState('')
+  const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null)
+
+  async function handleImport() {
+    const trimmed = url.trim()
+    if (!trimmed) return
+    const recipe = await importRecipe(trimmed)
+    if (recipe) {
+      setUrl('')
+      setSelectedRecipe(recipe)
+    }
+  }
+
+  async function handleAddToList(recipe: Recipe) {
+    if (!family) {
+      Alert.alert('No family', 'Join or create a family on the Shopping tab to use this feature.')
+      return
+    }
+    const count = await addIngredientsToShoppingList(recipe)
+    Alert.alert('Added to shopping list', `${count} ingredient${count !== 1 ? 's' : ''} added.`)
+  }
+
+  return (
+    <View style={[styles.screen, { backgroundColor: c.bg }]}>
+      {/* Import bar */}
+      <View style={[styles.importBar, { backgroundColor: c.card, borderBottomColor: c.border }]}>
+        <TextInput
+          style={[styles.urlInput, { borderColor: c.border, color: c.text, backgroundColor: c.bg }]}
+          placeholder="Paste a recipe URL to import…"
+          placeholderTextColor={c.muted}
+          value={url}
+          onChangeText={setUrl}
+          autoCapitalize="none"
+          autoCorrect={false}
+          keyboardType="url"
+          onSubmitEditing={handleImport}
+          returnKeyType="go"
+          editable={!importing}
+        />
+        <TouchableOpacity
+          style={[styles.importBtn, (!url.trim() || importing) && { opacity: 0.4 }]}
+          onPress={handleImport}
+          disabled={!url.trim() || importing}
+        >
+          {importing
+            ? <ActivityIndicator color="#fff" size="small" />
+            : <FontAwesome name="download" size={15} color="#fff" />
+          }
+        </TouchableOpacity>
+      </View>
+
+      {importing && (
+        <View style={[styles.banner, { backgroundColor: '#dbeafe' }]}>
+          <ActivityIndicator size="small" color="#2563eb" />
+          <Text style={[styles.bannerText, { color: '#2563eb' }]}>Fetching recipe…</Text>
+        </View>
+      )}
+
+      {error && (
+        <View style={[styles.banner, { backgroundColor: '#fee2e2' }]}>
+          <FontAwesome name="exclamation-circle" size={14} color="#ef4444" />
+          <Text style={[styles.bannerText, { color: '#ef4444', flex: 1 }]}>{error}</Text>
+        </View>
+      )}
+
+      {loading ? (
+        <View style={styles.centered}>
+          <ActivityIndicator color="#2563eb" />
+        </View>
+      ) : (
+        <FlatList
+          data={recipes}
+          keyExtractor={r => r.id}
+          contentContainerStyle={styles.list}
+          renderItem={({ item }) => (
+            <RecipeCard
+              recipe={item}
+              onPress={() => setSelectedRecipe(item)}
+              onDelete={() => deleteRecipe(item.id)}
+              c={c}
+            />
+          )}
+          ListEmptyComponent={
+            <View style={styles.empty}>
+              <Text style={styles.emptyIcon}>📖</Text>
+              <Text style={[styles.emptyTitle, { color: c.text }]}>No recipes yet</Text>
+              <Text style={[styles.emptyHint, { color: c.muted }]}>
+                Paste a URL from AllRecipes, BBC Good Food, Food Network, or any site with Schema.org recipe markup.
+              </Text>
+            </View>
+          }
+        />
+      )}
+
+      {selectedRecipe && (
+        <RecipeModal
+          recipe={selectedRecipe}
+          onClose={() => setSelectedRecipe(null)}
+          onAddToList={handleAddToList}
+          c={c}
+        />
+      )}
+    </View>
+  )
+}
+
+// ─── Styles ───────────────────────────────────────────────────────────────────
+
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
+  screen: { flex: 1 },
+  importBar: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    padding: 12, borderBottomWidth: 1,
   },
-  title: {
-    fontSize: 20,
-    fontWeight: 'bold',
+  urlInput: { flex: 1, borderWidth: 1, borderRadius: 10, padding: 10, fontSize: 14 },
+  importBtn: {
+    width: 44, height: 44, borderRadius: 10,
+    backgroundColor: '#2563eb', justifyContent: 'center', alignItems: 'center',
   },
-  separator: {
-    marginVertical: 30,
-    height: 1,
-    width: '80%',
+  banner: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 10 },
+  bannerText: { fontSize: 14, fontWeight: '500' },
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  list: { padding: 12, gap: 12 },
+  empty: { paddingTop: 80, alignItems: 'center', paddingHorizontal: 32, gap: 10 },
+  emptyIcon: { fontSize: 48 },
+  emptyTitle: { fontSize: 20, fontWeight: '700' },
+  emptyHint: { fontSize: 14, textAlign: 'center', lineHeight: 20 },
+})
+
+const card = StyleSheet.create({
+  container: { borderRadius: 14, borderWidth: 1, overflow: 'hidden', flexDirection: 'row', alignItems: 'center' },
+  image: { width: 90, height: 90 },
+  body: { flex: 1, padding: 12, gap: 4 },
+  title: { fontSize: 15, fontWeight: '700', lineHeight: 20 },
+  metaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  meta: { fontSize: 12 },
+  count: { fontSize: 12, marginTop: 2 },
+  deleteBtn: { padding: 14 },
+})
+
+const modal = StyleSheet.create({
+  container: { flex: 1 },
+  header: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1,
   },
-});
+  closeBtn: { width: 36, alignItems: 'flex-start' },
+  headerTitle: { flex: 1, fontSize: 16, fontWeight: '700', textAlign: 'center' },
+  scroll: { paddingBottom: 48 },
+  image: { width: '100%', height: 220 },
+  section: { padding: 20, gap: 8 },
+  title: { fontSize: 24, fontWeight: '800', lineHeight: 30 },
+  description: { fontSize: 15, lineHeight: 22 },
+  metaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
+  metaChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    borderWidth: 1, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 5,
+  },
+  metaText: { fontSize: 13 },
+  addListBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    backgroundColor: '#2563eb', marginHorizontal: 20, marginBottom: 8, borderRadius: 12, padding: 14,
+  },
+  addListBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  card: { margin: 20, marginTop: 8, borderRadius: 14, borderWidth: 1, overflow: 'hidden' },
+  sectionTitle: { fontSize: 17, fontWeight: '700', padding: 14, paddingBottom: 10 },
+  ingredientRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 10 },
+  bullet: { width: 6, height: 6, borderRadius: 3 },
+  ingredientText: { flex: 1, fontSize: 15 },
+  stepRow: { flexDirection: 'row', gap: 12, padding: 14 },
+  stepNum: {
+    width: 26, height: 26, borderRadius: 13, backgroundColor: '#2563eb',
+    justifyContent: 'center', alignItems: 'center', flexShrink: 0, marginTop: 1,
+  },
+  stepNumText: { color: '#fff', fontSize: 12, fontWeight: '700' },
+  stepText: { flex: 1, fontSize: 15, lineHeight: 22 },
+  sourceUrl: { fontSize: 12, textAlign: 'center', padding: 16 },
+})
