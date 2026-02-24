@@ -49,11 +49,17 @@ export function useRecipes(familyId: string | null) {
     setError(null)
 
     // 1. Parse via edge function
-    const { data: parsed, error: fnError } = await supabase.functions.invoke('parse-recipe', {
-      body: { url },
+    const fnUrl = `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/parse-recipe`
+    const fnRes = await fetch(fnUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url }),
     })
-    if (fnError || parsed?.error) {
-      setError(parsed?.error ?? fnError?.message ?? 'Failed to parse recipe')
+    const resText = await fnRes.text()
+    let parsed: any
+    try { parsed = JSON.parse(resText) } catch { parsed = { error: resText } }
+    if (!fnRes.ok || parsed?.error) {
+      setError(parsed?.error ?? `HTTP ${fnRes.status}`)
       setImporting(false)
       return null
     }

@@ -5,6 +5,9 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+const ok  = (body: unknown) => new Response(JSON.stringify(body), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+const err = (msg: string)   => new Response(JSON.stringify({ error: msg }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function parseDuration(iso: string): string {
@@ -54,21 +57,31 @@ serve(async (req) => {
 
   try {
     const { url } = await req.json()
-    if (!url) {
-      return new Response(JSON.stringify({ error: 'URL is required' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    if (!url) return err('URL is required')
+
+    // Fetch the page (15s timeout)
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 15_000)
+    let res: Response
+    try {
+      res = await fetch(url, {
+        signal: controller.signal,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+          'Accept-Language': 'en-US,en;q=0.9',
+          'Cache-Control': 'no-cache',
+        },
       })
+    } catch (e) {
+      return err((e as Error).name === 'AbortError'
+        ? 'The recipe page took too long to respond.'
+        : `Could not reach the page: ${(e as Error).message}`)
+    } finally {
+      clearTimeout(timeout)
     }
 
-    // Fetch the page
-    const res = await fetch(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; RecipeParser/1.0; +https://familymealprep.app)',
-        'Accept': 'text/html,application/xhtml+xml',
-      },
-    })
-    if (!res.ok) throw new Error(`Failed to fetch page (HTTP ${res.status})`)
+    if (!res.ok) return err(`Failed to fetch page (HTTP ${res.status})`)
     const html = await res.text()
 
     // Find JSON-LD blocks
@@ -86,10 +99,7 @@ serve(async (req) => {
     }
 
     if (!recipe) {
-      return new Response(
-        JSON.stringify({ error: 'No recipe found on this page. The URL must be a recipe page on a site that uses Schema.org markup (AllRecipes, BBC Good Food, Food Network, etc.).' }),
-        { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+      return err('No recipe found on this page. The URL must be a recipe page on a site that uses Schema.org markup (AllRecipes, BBC Good Food, Food Network, etc.).')
     }
 
     // Parse instructions — can be strings or HowToStep objects
@@ -99,7 +109,6 @@ serve(async (req) => {
         if (typeof s === 'string') return s.trim()
         if (typeof s === 'object' && s !== null) {
           const step = s as Record<string, unknown>
-          // HowToSection — flatten nested steps
           if (step['@type'] === 'HowToSection' && Array.isArray(step.itemListElement)) {
             return (step.itemListElement as Record<string, unknown>[])
               .map(i => (i.text as string || i.name as string || '').trim())
@@ -118,7 +127,7 @@ serve(async (req) => {
       ? String(Array.isArray(recipe.recipeYield) ? recipe.recipeYield[0] : recipe.recipeYield)
       : undefined
 
-    const parsed = {
+    return ok({
       title:        (recipe.name as string)?.trim() || 'Untitled Recipe',
       description:  (recipe.description as string)?.trim() || undefined,
       image_url:    getImageUrl(recipe.image),
@@ -128,15 +137,8 @@ serve(async (req) => {
       cook_time:    recipe.cookTime ? parseDuration(recipe.cookTime as string) : undefined,
       ingredients,
       instructions,
-    }
-
-    return new Response(JSON.stringify(parsed), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
-  } catch (err) {
-    return new Response(JSON.stringify({ error: (err as Error).message }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    })
+  } catch (e) {
+    return err((e as Error).message)
   }
 })
