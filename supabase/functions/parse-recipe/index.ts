@@ -48,6 +48,13 @@ function findRecipe(data: unknown): Record<string, unknown> | null {
   return null
 }
 
+// Strip non-numeric chars and return an integer, or undefined if unparseable
+function parseNutritionInt(val: unknown): number | undefined {
+  if (val == null) return undefined
+  const n = parseInt(String(val).replace(/[^0-9]/g, ''), 10)
+  return isNaN(n) ? undefined : n
+}
+
 // ─── Handler ─────────────────────────────────────────────────────────────────
 
 serve(async (req) => {
@@ -127,6 +134,9 @@ serve(async (req) => {
       ? String(Array.isArray(recipe.recipeYield) ? recipe.recipeYield[0] : recipe.recipeYield)
       : undefined
 
+    // Parse Schema.org NutritionInformation if present
+    const nutrition = recipe.nutrition as Record<string, unknown> | undefined
+
     return ok({
       title:        (recipe.name as string)?.trim() || 'Untitled Recipe',
       description:  (recipe.description as string)?.trim() || undefined,
@@ -137,6 +147,10 @@ serve(async (req) => {
       cook_time:    recipe.cookTime ? parseDuration(recipe.cookTime as string) : undefined,
       ingredients,
       instructions,
+      calories:     nutrition ? parseNutritionInt(nutrition.calories) : undefined,
+      protein_g:    nutrition ? parseNutritionInt(nutrition.proteinContent) : undefined,
+      carbs_g:      nutrition ? parseNutritionInt(nutrition.carbohydrateContent) : undefined,
+      fat_g:        nutrition ? parseNutritionInt(nutrition.fatContent) : undefined,
     })
   } catch (e) {
     return err((e as Error).message)

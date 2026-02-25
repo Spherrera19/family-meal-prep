@@ -10,6 +10,7 @@ export type Meal = {
   id: string
   name: string
   note?: string
+  recipe_id?: string
 }
 
 export type DayPlan = Record<string, Meal>
@@ -21,6 +22,7 @@ type MealRow = {
   meal_type: string
   name: string
   note: string | null
+  recipe_id: string | null
 }
 
 // ─── Helper ───────────────────────────────────────────────────────────────────
@@ -30,9 +32,10 @@ function rowsToWeekPlan(rows: MealRow[]): WeekPlan {
   for (const row of rows) {
     if (!plan[row.date]) plan[row.date] = {}
     plan[row.date][row.meal_type] = {
-      id: row.id,
-      name: row.name,
-      note: row.note ?? undefined,
+      id:        row.id,
+      name:      row.name,
+      note:      row.note ?? undefined,
+      recipe_id: row.recipe_id ?? undefined,
     }
   }
   return plan
@@ -54,7 +57,7 @@ export function useMealPlan(startDate: string, endDate: string) {
 
     const { data, error } = await supabase
       .from('meal_plans')
-      .select('id, date, meal_type, name, note')
+      .select('id, date, meal_type, name, note, recipe_id')
       .gte('date', startDate)
       .lte('date', endDate)
 
@@ -68,7 +71,7 @@ export function useMealPlan(startDate: string, endDate: string) {
 
   useEffect(() => { fetchWeek() }, [fetchWeek])
 
-  async function saveMeal(date: string, type: MealType, name: string, note?: string) {
+  async function saveMeal(date: string, type: MealType, name: string, note?: string, recipeId?: string) {
     if (!session) return
     setSaving(true)
     setError(null)
@@ -78,20 +81,20 @@ export function useMealPlan(startDate: string, endDate: string) {
     if (existing) {
       const { error } = await supabase
         .from('meal_plans')
-        .update({ name, note: note || null })
+        .update({ name, note: note || null, recipe_id: recipeId ?? null })
         .eq('id', existing.id)
 
       if (error) { setError(error.message); setSaving(false); return }
 
       setPlan(prev => ({
         ...prev,
-        [date]: { ...prev[date], [type]: { ...existing, name, note } },
+        [date]: { ...prev[date], [type]: { ...existing, name, note, recipe_id: recipeId } },
       }))
     } else {
       const { data, error } = await supabase
         .from('meal_plans')
-        .insert({ user_id: session.user.id, date, meal_type: type, name, note: note || null })
-        .select('id, date, meal_type, name, note')
+        .insert({ user_id: session.user.id, date, meal_type: type, name, note: note || null, recipe_id: recipeId ?? null })
+        .select('id, date, meal_type, name, note, recipe_id')
         .single()
 
       if (error) { setError(error.message); setSaving(false); return }
@@ -101,7 +104,7 @@ export function useMealPlan(startDate: string, endDate: string) {
         ...prev,
         [date]: {
           ...prev[date],
-          [type]: { id: row.id, name: row.name, note: row.note ?? undefined },
+          [type]: { id: row.id, name: row.name, note: row.note ?? undefined, recipe_id: row.recipe_id ?? undefined },
         },
       }))
     }

@@ -15,6 +15,10 @@ export type Recipe = {
   servings?: string
   prep_time?: string
   cook_time?: string
+  calories?: number
+  protein_g?: number
+  carbs_g?: number
+  fat_g?: number
   created_at: string
 }
 
@@ -82,6 +86,10 @@ export function useRecipes(familyId: string | null) {
         servings:     parsed.servings,
         prep_time:    parsed.prep_time,
         cook_time:    parsed.cook_time,
+        calories:     parsed.calories ?? null,
+        protein_g:    parsed.protein_g ?? null,
+        carbs_g:      parsed.carbs_g ?? null,
+        fat_g:        parsed.fat_g ?? null,
       })
       .select('*')
       .single()
@@ -106,6 +114,10 @@ export function useRecipes(familyId: string | null) {
     servings?: string
     prep_time?: string
     cook_time?: string
+    calories?: number
+    protein_g?: number
+    carbs_g?: number
+    fat_g?: number
   }): Promise<Recipe | null> {
     if (!session) return null
     setError(null)
@@ -122,6 +134,10 @@ export function useRecipes(familyId: string | null) {
         servings:     fields.servings ?? null,
         prep_time:    fields.prep_time ?? null,
         cook_time:    fields.cook_time ?? null,
+        calories:     fields.calories ?? null,
+        protein_g:    fields.protein_g ?? null,
+        carbs_g:      fields.carbs_g ?? null,
+        fat_g:        fields.fat_g ?? null,
       })
       .select('*')
       .single()
