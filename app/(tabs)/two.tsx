@@ -5,6 +5,7 @@ import {
   FlatList,
   Image,
   Modal,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -142,6 +143,64 @@ function ManualRecipeModal({ visible, onClose, onSave, c, prefillUrl }: {
   )
 }
 
+// ─── Nutrition panel ─────────────────────────────────────────────────────────
+
+type NutrientChipDef = {
+  label: string
+  icon: string
+  value: number | undefined
+  unit: string
+  isInt?: boolean
+}
+
+function NutritionPanel({ recipe, c }: { recipe: Recipe; c: typeof LIGHT }) {
+  const chips: NutrientChipDef[] = [
+    { label: 'Calories', icon: '🔥', value: recipe.calories,        unit: 'kcal', isInt: true },
+    { label: 'Protein',  icon: '💪', value: recipe.protein_g,       unit: 'g' },
+    { label: 'Carbs',    icon: '🌾', value: recipe.carbs_g,         unit: 'g' },
+    { label: 'Fat',      icon: '🫙', value: recipe.fat_g,           unit: 'g' },
+    { label: 'Fiber',    icon: '🌿', value: recipe.fiber_g,         unit: 'g' },
+    { label: 'Sugar',    icon: '🍬', value: recipe.sugar_g,         unit: 'g' },
+    { label: 'Sodium',   icon: '🧂', value: recipe.sodium_mg,       unit: 'mg', isInt: true },
+    { label: 'Sat. Fat', icon: '🥓', value: recipe.saturated_fat_g, unit: 'g' },
+  ]
+
+  const visible = chips.filter(c => c.value != null)
+  if (visible.length === 0) return null
+
+  const row1 = visible.slice(0, 4)
+  const row2 = visible.slice(4)
+
+  function Chip({ chip }: { chip: NutrientChipDef }) {
+    const display = chip.isInt
+      ? `${Math.round(chip.value!)}${chip.unit}`
+      : `${chip.value}${chip.unit}`
+    return (
+      <View style={[nutri.chip, { backgroundColor: c.card, borderColor: c.border }]}>
+        <Text style={nutri.chipIcon}>{chip.icon}</Text>
+        <Text style={[nutri.chipLabel, { color: c.muted }]}>{chip.label}</Text>
+        <Text style={[nutri.chipValue, { color: c.text }]}>{display}</Text>
+      </View>
+    )
+  }
+
+  return (
+    <View style={nutri.container}>
+      <View style={nutri.row}>
+        {row1.map(chip => <Chip key={chip.label} chip={chip} />)}
+      </View>
+      {row2.length > 0 && (
+        <View style={nutri.row}>
+          {row2.map(chip => <Chip key={chip.label} chip={chip} />)}
+        </View>
+      )}
+      {recipe.servings && (
+        <Text style={[nutri.perServing, { color: c.muted }]}>per serving</Text>
+      )}
+    </View>
+  )
+}
+
 // ─── Recipe detail modal ──────────────────────────────────────────────────────
 
 function RecipeModal({ recipe, onClose, onAddToList, c }: {
@@ -200,6 +259,8 @@ function RecipeModal({ recipe, onClose, onAddToList, c }: {
               )}
             </View>
           </View>
+
+          <NutritionPanel recipe={recipe} c={c} />
 
           {recipe.ingredients.length > 0 && (
             <TouchableOpacity
@@ -263,36 +324,38 @@ function RecipeCard({ recipe, onPress, onDelete, c }: {
   c: typeof LIGHT
 }) {
   function confirmDelete() {
-    Alert.alert('Delete recipe', `Remove "${recipe.title}"?`, [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: onDelete },
-    ])
+    if (Platform.OS === 'web') {
+      if (window.confirm(`Remove "${recipe.title}"?`)) onDelete()
+    } else {
+      Alert.alert('Delete recipe', `Remove "${recipe.title}"?`, [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete', style: 'destructive', onPress: onDelete },
+      ])
+    }
   }
 
   return (
-    <TouchableOpacity
-      style={[card.container, { backgroundColor: c.card, borderColor: c.border }]}
-      onPress={onPress}
-      activeOpacity={0.7}
-    >
-      {recipe.image_url && (
-        <Image source={{ uri: recipe.image_url }} style={card.image} resizeMode="cover" />
-      )}
-      <View style={card.body}>
-        <Text style={[card.title, { color: c.text }]} numberOfLines={2}>{recipe.title}</Text>
-        <View style={card.metaRow}>
-          {recipe.prep_time && <Text style={[card.meta, { color: c.muted }]}>⏱ {recipe.prep_time}</Text>}
-          {recipe.cook_time && <Text style={[card.meta, { color: c.muted }]}>🔥 {recipe.cook_time}</Text>}
-          {recipe.servings && <Text style={[card.meta, { color: c.muted }]}>👥 {recipe.servings}</Text>}
+    <View style={[card.container, { backgroundColor: c.card, borderColor: c.border }]}>
+      <TouchableOpacity style={card.pressable} onPress={onPress} activeOpacity={0.7}>
+        {recipe.image_url && (
+          <Image source={{ uri: recipe.image_url }} style={card.image} resizeMode="cover" />
+        )}
+        <View style={card.body}>
+          <Text style={[card.title, { color: c.text }]} numberOfLines={2}>{recipe.title}</Text>
+          <View style={card.metaRow}>
+            {recipe.prep_time && <Text style={[card.meta, { color: c.muted }]}>⏱ {recipe.prep_time}</Text>}
+            {recipe.cook_time && <Text style={[card.meta, { color: c.muted }]}>🔥 {recipe.cook_time}</Text>}
+            {recipe.servings && <Text style={[card.meta, { color: c.muted }]}>👥 {recipe.servings}</Text>}
+          </View>
+          <Text style={[card.count, { color: c.muted }]}>
+            {recipe.ingredients.length} ingredients · {recipe.instructions.length} steps
+          </Text>
         </View>
-        <Text style={[card.count, { color: c.muted }]}>
-          {recipe.ingredients.length} ingredients · {recipe.instructions.length} steps
-        </Text>
-      </View>
+      </TouchableOpacity>
       <TouchableOpacity onPress={confirmDelete} style={card.deleteBtn}>
         <FontAwesome name="trash-o" size={15} color={c.muted} />
       </TouchableOpacity>
-    </TouchableOpacity>
+    </View>
   )
 }
 
@@ -467,6 +530,7 @@ const styles = StyleSheet.create({
 
 const card = StyleSheet.create({
   container: { borderRadius: 14, borderWidth: 1, overflow: 'hidden', flexDirection: 'row', alignItems: 'center' },
+  pressable: { flex: 1, flexDirection: 'row', alignItems: 'center' },
   image: { width: 90, height: 90 },
   body: { flex: 1, padding: 12, gap: 4 },
   title: { fontSize: 15, fontWeight: '700', lineHeight: 20 },
@@ -513,6 +577,19 @@ const modal = StyleSheet.create({
   stepNumText: { color: '#fff', fontSize: 12, fontWeight: '700' },
   stepText: { flex: 1, fontSize: 15, lineHeight: 22 },
   sourceUrl: { fontSize: 12, textAlign: 'center', padding: 16 },
+})
+
+const nutri = StyleSheet.create({
+  container: { marginHorizontal: 20, marginBottom: 8, gap: 6 },
+  row: { flexDirection: 'row', gap: 6 },
+  chip: {
+    flex: 1, borderWidth: 1, borderRadius: 10, padding: 8,
+    alignItems: 'center', gap: 2,
+  },
+  chipIcon: { fontSize: 16 },
+  chipLabel: { fontSize: 10, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.3 },
+  chipValue: { fontSize: 13, fontWeight: '700' },
+  perServing: { fontSize: 11, textAlign: 'center', marginTop: 2 },
 })
 
 const manualModal = StyleSheet.create({
