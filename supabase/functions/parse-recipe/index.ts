@@ -1,5 +1,6 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { parseHTML } from 'npm:linkedom'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -257,13 +258,57 @@ function parseIngredient(str: string): ParsedIngredient | null {
   return { gramWeight, foodName }
 }
 
+// ─── Supabase admin client (for nutrient cache) ───────────────────────────────
+
+const supabaseAdmin = (() => {
+  const url = Deno.env.get('SUPABASE_URL')
+  const key = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+  if (!url || !key) return null
+  return createClient(url, key)
+})()
+
+function mapCacheToNutrients(row: Record<string, unknown>): Record<string, number> {
+  const result: Record<string, number> = {}
+  const mappings: [string, string][] = [
+    ['calories_per_100g',        'calories'],
+    ['protein_g_per_100g',       'protein_g'],
+    ['carbs_g_per_100g',         'carbs_g'],
+    ['fat_g_per_100g',           'fat_g'],
+    ['fiber_g_per_100g',         'fiber_g'],
+    ['sugar_g_per_100g',         'sugar_g'],
+    ['sodium_mg_per_100g',       'sodium_mg'],
+    ['saturated_fat_g_per_100g', 'saturated_fat_g'],
+  ]
+  for (const [cacheKey, nutrientKey] of mappings) {
+    if (row[cacheKey] != null) result[nutrientKey] = Number(row[cacheKey])
+  }
+  return result
+}
+
 async function fetchUSDANutrients(
   foodName: string,
   apiKey: string,
 ): Promise<Record<string, number> | null> {
+  const normalizedQuery = foodName.toLowerCase().trim()
+
+  // Check cache first
+  if (supabaseAdmin) {
+    try {
+      const { data: cached } = await supabaseAdmin
+        .from('usda_nutrient_cache')
+        .select('*')
+        .eq('query', normalizedQuery)
+        .gt('expires_at', new Date().toISOString())
+        .single()
+      if (cached) return mapCacheToNutrients(cached)
+    } catch {
+      // Cache miss or error — proceed to USDA API
+    }
+  }
+
   try {
     const params = new URLSearchParams({
-      query:    foodName,
+      query:    normalizedQuery,
       api_key:  apiKey,
       dataType: 'Foundation,SR Legacy',
       pageSize: '3',
@@ -286,7 +331,24 @@ async function fetchUSDANutrients(
         }
       }
     }
-    return Object.keys(nutrientMap).length > 0 ? nutrientMap : null
+    if (Object.keys(nutrientMap).length === 0) return null
+
+    // Write to cache (fire-and-forget)
+    if (supabaseAdmin) {
+      supabaseAdmin.from('usda_nutrient_cache').upsert({
+        query:                    normalizedQuery,
+        calories_per_100g:        nutrientMap.calories        ?? null,
+        protein_g_per_100g:       nutrientMap.protein_g       ?? null,
+        carbs_g_per_100g:         nutrientMap.carbs_g         ?? null,
+        fat_g_per_100g:           nutrientMap.fat_g           ?? null,
+        fiber_g_per_100g:         nutrientMap.fiber_g         ?? null,
+        sugar_g_per_100g:         nutrientMap.sugar_g         ?? null,
+        sodium_mg_per_100g:       nutrientMap.sodium_mg       ?? null,
+        saturated_fat_g_per_100g: nutrientMap.saturated_fat_g ?? null,
+      }).then(() => {}).catch(() => {})
+    }
+
+    return nutrientMap
   } catch {
     return null
   }
@@ -607,10 +669,27 @@ async function extractWithClaude(html: string): Promise<ExtractionResult | null>
         max_tokens: 1024,
         messages: [{
           role: 'user',
-          content: `Extract the recipe from this web page text and return ONLY valid JSON with these fields:
-{"title": string, "description": string, "ingredients": string[], "instructions": string[], "servings": string, "prep_time": string, "cook_time": string, "image_url": string}
+          content: `You are a specialized Recipe Extraction Agent. Your task is to extract structured recipe data from raw web page text.
 
-Use empty string for missing string fields and empty array for missing arrays. Do not include any explanation, only the JSON object.
+Return ONLY a valid JSON object with these exact keys:
+{
+  "title": string,
+  "description": string,
+  "ingredients": string[],
+  "instructions": string[],
+  "servings": string,
+  "prep_time": string,
+  "cook_time": string,
+  "image_url": string,
+  "macros": { "calories": integer, "protein_g": integer, "carbs_g": integer, "fat_g": integer }
+}
+
+Rules:
+- Estimation: If nutrition data is not present, estimate macros per serving using your knowledge of the ingredients.
+- Standardization: Convert all measurements to standard US units (cups, tbsp, oz, lb).
+- Cleanliness: Omit blog filler text and ad copy (e.g. "This reminds me of my grandmother").
+- Use empty string for missing string fields, empty array for missing arrays, and 0 for unknown macro integers.
+- Do not include any explanation or markdown — only the raw JSON object.
 
 Page text:
 ${stripped}`,
@@ -636,6 +715,11 @@ ${stripped}`,
       prep_time: parsed.prep_time || undefined,
       cook_time: parsed.cook_time || undefined,
       image_url: parsed.image_url || undefined,
+      // macros from Claude's estimate
+      calories: parsed.macros?.calories ? String(parsed.macros.calories) : undefined,
+      protein:  parsed.macros?.protein_g ? String(parsed.macros.protein_g) : undefined,
+      carbs:    parsed.macros?.carbs_g   ? String(parsed.macros.carbs_g)   : undefined,
+      fat:      parsed.macros?.fat_g     ? String(parsed.macros.fat_g)     : undefined,
     }
   } catch {
     return null
