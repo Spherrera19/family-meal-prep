@@ -33,10 +33,9 @@ export function useUserProfile() {
       .from('user_profiles')
       .select('daily_calories, daily_protein_g, daily_carbs_g, daily_fat_g, weight_unit')
       .eq('id', session.user.id)
-      .single()
+      .maybeSingle()
 
-    if (error && error.code !== 'PGRST116') {
-      // PGRST116 = no rows found — first-time user, use defaults
+    if (error) {
       setError(error.message)
     } else if (data) {
       setProfile({
