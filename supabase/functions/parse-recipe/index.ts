@@ -50,18 +50,19 @@ function findRecipe(data: unknown): Record<string, unknown> | null {
   return null
 }
 
-// Strip non-numeric chars and return an integer, or undefined if unparseable
-function parseNutritionInt(val: unknown): number | undefined {
+// Extract first number including decimals, return float or undefined
+function parseNutritionFloat(val: unknown): number | undefined {
   if (val == null) return undefined
-  const n = parseInt(String(val).replace(/[^0-9]/g, ''), 10)
+  const m = String(val).match(/[\d.]+/)
+  if (!m) return undefined
+  const n = parseFloat(m[0])
   return isNaN(n) ? undefined : n
 }
 
-// Keep decimal point, return float or undefined
-function parseNutritionFloat(val: unknown): number | undefined {
-  if (val == null) return undefined
-  const n = parseFloat(String(val).replace(/[^0-9.]/g, ''))
-  return isNaN(n) ? undefined : n
+// Parse number then round to integer (e.g. "413.5 kcal" → 414)
+function parseNutritionInt(val: unknown): number | undefined {
+  const f = parseNutritionFloat(val)
+  return f !== undefined ? Math.round(f) : undefined
 }
 
 // ─── Schema.org nutrition extraction ─────────────────────────────────────────
