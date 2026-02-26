@@ -1,0 +1,28 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(claude update:*)",
+      "Bash(cat:*)",
+      "Bash(node:*)",
+      "Bash(cd \"C:/Users/steve/Code/Claude Projects/family-meal-prep\" && npx expo install --dev jest-expo @testing-library/react-native 2>&1)",
+      "Bash(cd \"C:/Users/steve/Code/Claude Projects/family-meal-prep\" && npx jest hooks/__tests__/useMealPlan.test.ts --no-coverage 2>&1)",
+      "Bash(cd \"C:/Users/steve/Code/Claude Projects/family-meal-prep\" && npx jest hooks/__tests__/useRecipes.test.ts --no-coverage 2>&1)",
+      "Bash(cd \"C:/Users/steve/Code/Claude Projects/family-meal-prep\" && npx jest hooks/__tests__/ --no-coverage 2>&1)",
+      "Bash(cd \"C:\\\\Users\\\\steve\\\\Code\\\\Claude Projects\\\\family-meal-prep\" && npm test -- --no-coverage 2>&1)",
+      "Bash(cd \"/c/Users/steve/Code/Claude Projects/family-meal-prep\" && npm test 2>&1)",
+      "Bash(cd:*)",
+      "Bash(tail:*)",
+      "Bash(cd \"C:\\\\Users\\\\steve\\\\Code\\\\Claude Projects\\\\family-meal-prep\" && npx jest utils/__tests__/nutrition.test.ts hooks/__tests__/useUserProfile.test.ts hooks/__tests__/useWeightLog.test.ts --no-coverage 2>&1)",
+      "Bash(cd \"C:\\\\Users\\\\steve\\\\Code\\\\Claude Projects\\\\family-meal-prep\" && npm test -- --passWithNoTests 2>&1)",
+      "Bash(cd \"C:\\\\Users\\\\steve\\\\Code\\\\Claude Projects\\\\family-meal-prep\" && npx supabase secrets set USDA_API_KEY=aUpawCuuxlixDIKKsT8cy01Vw7JsZ3nRIiFEGjeM 2>&1)",
+      "Bash(cd \"C:\\\\Users\\\\steve\\\\Code\\\\Claude Projects\\\\family-meal-prep\" && npx supabase functions deploy parse-recipe 2>&1)",
+      "Bash(cd \"C:\\\\Users\\\\steve\\\\Code\\\\Claude Projects\\\\family-meal-prep\" && npx supabase db push 2>&1)",
+      "Bash(npx supabase:*)",
+      "mcp__supabase__list_projects"
+    ]
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "supabase"
+  ]
+}

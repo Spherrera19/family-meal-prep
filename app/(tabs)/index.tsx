@@ -20,6 +20,8 @@ import { useMealPlan } from '@/hooks/useMealPlan'
 import { useRecipes, type Recipe } from '@/hooks/useRecipes'
 import { useFamily } from '@/hooks/useFamily'
 import { useDragAndDrop } from '@/hooks/useDragAndDrop'
+import { useUserProfile } from '@/hooks/useUserProfile'
+import { getDayNutrition } from '@/utils/nutrition'
 import { DragGestureWrap } from '@/components/DragGestureWrap'
 
 // ─── Slot config & helpers ────────────────────────────────────────────────────
@@ -150,6 +152,7 @@ export default function MealPlanScreen() {
   const { plan, loading, saving, error, saveMeal, deleteMeal } = useMealPlan(startDate, endDate)
   const { family }  = useFamily()
   const { recipes } = useRecipes(family?.id ?? null)
+  const { profile } = useUserProfile()
 
   // Fully-customisable slot list — start with defaults, user can delete any
   const [slots, setSlots] = useState<SlotConfig[]>(DEFAULT_SLOTS)
@@ -301,6 +304,38 @@ export default function MealPlanScreen() {
       </View>
       {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
+      {/* ── Daily macro summary bar ─────────────────────────────────── */}
+      {(() => {
+        const dayNutrition = getDayNutrition(dayPlan, recipes)
+        const hasData = dayNutrition.calories > 0 || dayNutrition.protein_g > 0
+        const macros = [
+          { label: 'Cal',     icon: '🔥', value: dayNutrition.calories,  goal: profile.daily_calories,  unit: '' },
+          { label: 'Protein', icon: '💪', value: dayNutrition.protein_g, goal: profile.daily_protein_g, unit: 'g' },
+          { label: 'Carbs',   icon: '🌾', value: dayNutrition.carbs_g,   goal: profile.daily_carbs_g,   unit: 'g' },
+          { label: 'Fat',     icon: '🫙', value: dayNutrition.fat_g,     goal: profile.daily_fat_g,     unit: 'g' },
+        ]
+        return (
+          <View style={[styles.macroBar, { backgroundColor: c.card, borderBottomColor: c.border }]}>
+            {macros.map(m => {
+              const pct = m.goal > 0 ? Math.min(m.value / m.goal, 1) : 0
+              return (
+                <View key={m.label} style={styles.macroCard}>
+                  <Text style={styles.macroIcon}>{m.icon}</Text>
+                  <Text style={[styles.macroLabel, { color: c.muted }]}>{m.label}</Text>
+                  <Text style={[styles.macroValue, { color: c.text }]}>
+                    {hasData ? `${m.value}${m.unit}` : '–'}
+                    {hasData ? <Text style={[styles.macroGoal, { color: c.muted }]}>/{m.goal}{m.unit}</Text> : null}
+                  </Text>
+                  <View style={[styles.macroBarBg, { backgroundColor: c.border }]}>
+                    <View style={[styles.macroBarFill, { width: `${pct * 100}%` as any, backgroundColor: pct >= 1 ? '#10b981' : '#2563eb' }]} />
+                  </View>
+                </View>
+              )
+            })}
+          </View>
+        )
+      })()}
+
       {/* ── Armed banner ───────────────────────────────────────────── */}
       {armedRecipe && (
         <View style={styles.armedBanner}>
@@ -350,6 +385,19 @@ export default function MealPlanScreen() {
                 <View>
                   <Text style={[styles.mealName, { color: c.text }]}>{meal.name}</Text>
                   {meal.note ? <Text style={[styles.mealNote, { color: c.muted }]}>{meal.note}</Text> : null}
+                  {(() => {
+                    if (!meal.recipe_id) return null
+                    const r = recipes.find(rc => rc.id === meal.recipe_id)
+                    if (!r || (r.calories == null && r.protein_g == null && r.carbs_g == null && r.fat_g == null)) return null
+                    return (
+                      <Text style={[styles.mealMacros, { color: c.muted }]}>
+                        {r.calories != null ? `🔥 ${r.calories} cal  ` : ''}
+                        {r.protein_g != null ? `💪 ${r.protein_g}g  ` : ''}
+                        {r.carbs_g != null ? `🌾 ${r.carbs_g}g  ` : ''}
+                        {r.fat_g != null ? `🫙 ${r.fat_g}g` : ''}
+                      </Text>
+                    )
+                  })()}
                 </View>
               ) : (
                 <Text style={[styles.emptySlot, { color: (isHovered || isArmed) ? '#2563eb' : c.muted }]}>
@@ -523,7 +571,17 @@ const styles = StyleSheet.create({
   iconBtn:        { padding: 6 },
   mealName:       { fontSize: 16, fontWeight: '600' },
   mealNote:       { fontSize: 13, marginTop: 2 },
+  mealMacros:     { fontSize: 12, marginTop: 4 },
   emptySlot:      { fontSize: 14 },
+
+  macroBar:     { flexDirection: 'row', borderBottomWidth: 1, paddingHorizontal: 8, paddingVertical: 8, gap: 6 },
+  macroCard:    { flex: 1, alignItems: 'center', gap: 2 },
+  macroIcon:    { fontSize: 14 },
+  macroLabel:   { fontSize: 9, fontWeight: '600', letterSpacing: 0.5 },
+  macroValue:   { fontSize: 11, fontWeight: '700' },
+  macroGoal:    { fontSize: 10, fontWeight: '400' },
+  macroBarBg:   { width: '100%', height: 3, borderRadius: 2, overflow: 'hidden' },
+  macroBarFill: { height: 3, borderRadius: 2 },
 
   addSlotBtn:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderWidth: 1.5, borderStyle: 'dashed', borderRadius: 14, paddingVertical: 14, marginBottom: 12 },
   addSlotText: { fontSize: 14, fontWeight: '500' },

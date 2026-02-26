@@ -19,6 +19,10 @@ export type Recipe = {
   protein_g?: number
   carbs_g?: number
   fat_g?: number
+  fiber_g?: number
+  sugar_g?: number
+  sodium_mg?: number
+  saturated_fat_g?: number
   created_at: string
 }
 
@@ -53,20 +57,11 @@ export function useRecipes(familyId: string | null) {
     setError(null)
 
     // 1. Parse via edge function
-    const fnUrl = `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/parse-recipe`
-    const fnRes = await fetch(fnUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${session.access_token}`,
-      },
-      body: JSON.stringify({ url }),
+    const { data: parsed, error: fnError } = await supabase.functions.invoke('parse-recipe', {
+      body: { url },
     })
-    const resText = await fnRes.text()
-    let parsed: any
-    try { parsed = JSON.parse(resText) } catch { parsed = { error: resText } }
-    if (!fnRes.ok || parsed?.error) {
-      setError(parsed?.error ?? `HTTP ${fnRes.status}`)
+    if (fnError || parsed?.error) {
+      setError(parsed?.error ?? fnError?.message ?? 'Failed to parse recipe')
       setImporting(false)
       return null
     }
@@ -86,10 +81,14 @@ export function useRecipes(familyId: string | null) {
         servings:     parsed.servings,
         prep_time:    parsed.prep_time,
         cook_time:    parsed.cook_time,
-        calories:     parsed.calories ?? null,
-        protein_g:    parsed.protein_g ?? null,
-        carbs_g:      parsed.carbs_g ?? null,
-        fat_g:        parsed.fat_g ?? null,
+        calories:        parsed.calories        ?? null,
+        protein_g:       parsed.protein_g       ?? null,
+        carbs_g:         parsed.carbs_g         ?? null,
+        fat_g:           parsed.fat_g           ?? null,
+        fiber_g:         parsed.fiber_g         ?? null,
+        sugar_g:         parsed.sugar_g         ?? null,
+        sodium_mg:       parsed.sodium_mg       ?? null,
+        saturated_fat_g: parsed.saturated_fat_g ?? null,
       })
       .select('*')
       .single()
@@ -118,6 +117,10 @@ export function useRecipes(familyId: string | null) {
     protein_g?: number
     carbs_g?: number
     fat_g?: number
+    fiber_g?: number
+    sugar_g?: number
+    sodium_mg?: number
+    saturated_fat_g?: number
   }): Promise<Recipe | null> {
     if (!session) return null
     setError(null)
@@ -134,10 +137,14 @@ export function useRecipes(familyId: string | null) {
         servings:     fields.servings ?? null,
         prep_time:    fields.prep_time ?? null,
         cook_time:    fields.cook_time ?? null,
-        calories:     fields.calories ?? null,
-        protein_g:    fields.protein_g ?? null,
-        carbs_g:      fields.carbs_g ?? null,
-        fat_g:        fields.fat_g ?? null,
+        calories:        fields.calories        ?? null,
+        protein_g:       fields.protein_g       ?? null,
+        carbs_g:         fields.carbs_g         ?? null,
+        fat_g:           fields.fat_g           ?? null,
+        fiber_g:         fields.fiber_g         ?? null,
+        sugar_g:         fields.sugar_g         ?? null,
+        sodium_mg:       fields.sodium_mg       ?? null,
+        saturated_fat_g: fields.saturated_fat_g ?? null,
       })
       .select('*')
       .single()

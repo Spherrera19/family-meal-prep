@@ -34,6 +34,9 @@ yarn-error.*
 .env
 .env*.local
 
+# MCP config (contains secrets)
+.mcp.json
+
 # Supabase CLI runtime
 supabase/.temp/
 
