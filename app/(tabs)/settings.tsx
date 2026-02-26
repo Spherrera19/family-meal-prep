@@ -1,6 +1,7 @@
-import { View, Text, TouchableOpacity, StyleSheet, useColorScheme } from 'react-native'
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native'
 import { FontAwesome } from '@expo/vector-icons'
 import { useAuth } from '@/context/AuthContext'
+import { useColorScheme } from '@/components/useColorScheme'
 import { getTheme } from '@/constants/theme'
 
 export default function SettingsScreen() {

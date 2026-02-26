@@ -1,5 +1,4 @@
 import React from 'react'
-import { StyleSheet } from 'react-native'
 import { Tabs } from 'expo-router'
 import { useColorScheme } from '@/components/useColorScheme'
 import { useClientOnlyValue } from '@/components/useClientOnlyValue'
@@ -16,14 +15,8 @@ export default function TabLayout() {
       tabBar={(props) => <CustomTabBar {...props} />}
       screenOptions={{
         headerShown: showHeader,
-        headerStyle: {
-          backgroundColor: c.card,
-          // Remove native shadow/border — our hairline border replaces it
-          shadowOpacity: 0,
-          elevation: 0,
-          borderBottomWidth: StyleSheet.hairlineWidth,
-          borderBottomColor: c.border,
-        } as any,
+        headerStyle: { backgroundColor: c.card },
+        headerShadowVisible: false,
         headerTitleStyle: {
           color: c.text,
           fontWeight: '600',
