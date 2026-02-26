@@ -1,68 +1,42 @@
-import React from 'react';
-import FontAwesome from '@expo/vector-icons/FontAwesome';
-import { Tabs } from 'expo-router';
-import { Pressable, Text } from 'react-native';
-
-import Colors from '@/constants/Colors';
-import { useColorScheme } from '@/components/useColorScheme';
-import { useClientOnlyValue } from '@/components/useClientOnlyValue';
-import { useAuth } from '@/context/AuthContext';
-
-// You can explore the built-in icon families and icons on the web at https://icons.expo.fyi/
-function TabBarIcon(props: {
-  name: React.ComponentProps<typeof FontAwesome>['name'];
-  color: string;
-}) {
-  return <FontAwesome size={28} style={{ marginBottom: -3 }} {...props} />;
-}
+import React from 'react'
+import { StyleSheet } from 'react-native'
+import { Tabs } from 'expo-router'
+import { useColorScheme } from '@/components/useColorScheme'
+import { useClientOnlyValue } from '@/components/useClientOnlyValue'
+import { getTheme } from '@/constants/theme'
+import { CustomTabBar } from '@/components/CustomTabBar'
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
-  const { signOut } = useAuth();
+  const colorScheme = useColorScheme()
+  const c = getTheme(colorScheme)
+  const showHeader = useClientOnlyValue(false, true)
 
   return (
     <Tabs
+      tabBar={(props) => <CustomTabBar {...props} />}
       screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
-        headerShown: useClientOnlyValue(false, true),
-        headerRight: () => (
-          <Pressable onPress={signOut} style={{ marginRight: 16 }}>
-            {({ pressed }) => (
-              <Text style={{ color: Colors[colorScheme ?? 'light'].tint, opacity: pressed ? 0.5 : 1, fontSize: 15 }}>
-                Sign out
-              </Text>
-            )}
-          </Pressable>
-        ),
-      }}>
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: 'Meal Plan',
-          tabBarIcon: ({ color }) => <TabBarIcon name="calendar" color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="shopping"
-        options={{
-          title: 'Shopping',
-          tabBarIcon: ({ color }) => <TabBarIcon name="shopping-cart" color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="two"
-        options={{
-          title: 'Recipes',
-          tabBarIcon: ({ color }) => <TabBarIcon name="book" color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="nutrition"
-        options={{
-          title: 'Nutrition',
-          tabBarIcon: ({ color }) => <TabBarIcon name="heartbeat" color={color} />,
-        }}
-      />
+        headerShown: showHeader,
+        headerStyle: {
+          backgroundColor: c.card,
+          // Remove native shadow/border — our hairline border replaces it
+          shadowOpacity: 0,
+          elevation: 0,
+          borderBottomWidth: StyleSheet.hairlineWidth,
+          borderBottomColor: c.border,
+        } as any,
+        headerTitleStyle: {
+          color: c.text,
+          fontWeight: '600',
+          fontSize: 17,
+        },
+        headerTintColor: c.accent,
+      }}
+    >
+      <Tabs.Screen name="index"     options={{ title: 'Meal Plan'  }} />
+      <Tabs.Screen name="shopping"  options={{ title: 'Shopping'   }} />
+      <Tabs.Screen name="two"       options={{ title: 'Recipes'    }} />
+      <Tabs.Screen name="nutrition" options={{ title: 'Nutrition'  }} />
+      <Tabs.Screen name="settings"  options={{ title: 'Settings'   }} />
     </Tabs>
-  );
+  )
 }

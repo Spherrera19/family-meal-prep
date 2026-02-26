@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Image,
   Modal,
@@ -14,6 +15,7 @@ import {
   View,
   useColorScheme,
 } from 'react-native'
+import { getTheme, type AppTheme } from '@/constants/theme'
 import Animated from 'react-native-reanimated'
 import { FontAwesome } from '@expo/vector-icons'
 import { useMealPlan } from '@/hooks/useMealPlan'
@@ -91,9 +93,6 @@ function getWeekDates(anchor: Date): Date[] {
 
 // ─── Theme ────────────────────────────────────────────────────────────────────
 
-const LIGHT = { bg: '#f8fafc', card: '#fff',    text: '#0f172a', muted: '#94a3b8', border: '#e2e8f0' }
-const DARK  = { bg: '#0f172a', card: '#1e293b', text: '#f1f5f9', muted: '#64748b', border: '#334155' }
-
 // ─── RecipeChip — memoised to avoid recreating gesture every render ───────────
 
 type ChipProps = {
@@ -101,11 +100,12 @@ type ChipProps = {
   isArmed: boolean
   isDragging: boolean
   onTap: () => void
+  onDelete: () => void
   makeDragGesture: (r: Recipe) => any
-  c: typeof LIGHT
+  c: AppTheme
 }
 
-const RecipeChip = React.memo(function RecipeChip({ recipe, isArmed, isDragging, onTap, makeDragGesture, c }: ChipProps) {
+const RecipeChip = React.memo(function RecipeChip({ recipe, isArmed, isDragging, onTap, onDelete, makeDragGesture, c }: ChipProps) {
   // Gesture is stable as long as recipe.id and makeDragGesture don't change
   const gesture = useMemo(() => makeDragGesture(recipe), [recipe.id, makeDragGesture])
   return (
@@ -113,6 +113,7 @@ const RecipeChip = React.memo(function RecipeChip({ recipe, isArmed, isDragging,
       <TouchableOpacity
         activeOpacity={0.8}
         onPress={onTap}
+        onLongPress={onDelete}
         style={[
           styles.recipeChip,
           { backgroundColor: c.bg, borderColor: (isArmed || isDragging) ? '#2563eb' : c.border },
@@ -134,7 +135,7 @@ const RecipeChip = React.memo(function RecipeChip({ recipe, isArmed, isDragging,
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
 export default function MealPlanScreen() {
-  const c = useColorScheme() === 'dark' ? DARK : LIGHT
+  const c = getTheme(useColorScheme())
 
   const today = new Date()
   const [weekAnchor, setWeekAnchor]     = useState(today)
@@ -151,7 +152,7 @@ export default function MealPlanScreen() {
 
   const { plan, loading, saving, error, saveMeal, deleteMeal } = useMealPlan(startDate, endDate)
   const { family }  = useFamily()
-  const { recipes } = useRecipes(family?.id ?? null)
+  const { recipes, deleteRecipe } = useRecipes(family?.id ?? null)
   const { profile } = useUserProfile()
 
   // Fully-customisable slot list — start with defaults, user can delete any
@@ -183,7 +184,7 @@ export default function MealPlanScreen() {
 
   // Native drag-and-drop
   const handleDrop = useCallback((type: string, recipe: Recipe) => {
-    saveMeal(selectedKeyRef.current, type, recipe.title)
+    saveMeal(selectedKeyRef.current, type, recipe.title, undefined, recipe.id)
   }, [saveMeal])
 
   const { draggedRecipe, hoveredSlot, overlayStyle, slotViewRef, measureSlot, makeDragGesture, setScreenOffset } =
@@ -232,7 +233,7 @@ export default function MealPlanScreen() {
 
   function handleSlotPress(type: string) {
     if (armedRecipe) {
-      saveMeal(selectedKey, type, armedRecipe.title)
+      saveMeal(selectedKey, type, armedRecipe.title, undefined, armedRecipe.id)
       setArmedRecipe(null)
     } else {
       openMealModal(type)
@@ -383,6 +384,12 @@ export default function MealPlanScreen() {
               </View>
               {meal ? (
                 <View>
+                  <TouchableOpacity
+                    onPress={e => { e.stopPropagation?.(); deleteMeal(selectedKey, slot.type) }}
+                    style={styles.clearMealBtn}
+                  >
+                    <FontAwesome name="times" size={11} color={c.muted} />
+                  </TouchableOpacity>
                   <Text style={[styles.mealName, { color: c.text }]}>{meal.name}</Text>
                   {meal.note ? <Text style={[styles.mealNote, { color: c.muted }]}>{meal.note}</Text> : null}
                   {(() => {
@@ -440,6 +447,12 @@ export default function MealPlanScreen() {
                 isArmed={armedRecipe?.id === recipe.id}
                 isDragging={draggedRecipe?.id === recipe.id}
                 onTap={() => setArmedRecipe(prev => prev?.id === recipe.id ? null : recipe)}
+                onDelete={() =>
+                  Alert.alert('Delete recipe?', recipe.title, [
+                    { text: 'Cancel', style: 'cancel' },
+                    { text: 'Delete', style: 'destructive', onPress: () => deleteRecipe(recipe.id) },
+                  ])
+                }
                 makeDragGesture={makeDragGesture}
                 c={c}
               />
@@ -569,6 +582,7 @@ const styles = StyleSheet.create({
   slotLabel:      { fontSize: 13, fontWeight: '700' },
   slotActions:    { flexDirection: 'row', gap: 4 },
   iconBtn:        { padding: 6 },
+  clearMealBtn:   { position: 'absolute', top: 0, right: 0, padding: 4, zIndex: 1 },
   mealName:       { fontSize: 16, fontWeight: '600' },
   mealNote:       { fontSize: 13, marginTop: 2 },
   mealMacros:     { fontSize: 12, marginTop: 4 },

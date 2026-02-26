@@ -14,16 +14,13 @@ import {
 import { FontAwesome } from '@expo/vector-icons'
 import { useFamily } from '@/hooks/useFamily'
 import { useShoppingList, type ShoppingItem } from '@/hooks/useShoppingList'
-
-// ─── Theme ────────────────────────────────────────────────────────────────────
-
-const LIGHT = { bg: '#f8fafc', card: '#fff', text: '#0f172a', muted: '#94a3b8', border: '#e2e8f0' }
-const DARK  = { bg: '#0f172a', card: '#1e293b', text: '#f1f5f9', muted: '#64748b', border: '#334155' }
+import { estimateTotal } from '@/utils/prices'
+import { getTheme, type AppTheme } from '@/constants/theme'
 
 // ─── Family setup screen ──────────────────────────────────────────────────────
 
 function FamilySetup({ c, createFamily, joinFamily, error }: {
-  c: typeof LIGHT
+  c: AppTheme
   createFamily: (name: string) => Promise<void>
   joinFamily: (code: string) => Promise<void>
   error: string | null
@@ -114,7 +111,7 @@ function ShoppingList({ familyId, familyName, inviteCode, c }: {
   familyId: string
   familyName: string
   inviteCode: string
-  c: typeof LIGHT
+  c: AppTheme
 }) {
   const { items, loading, error, addItem, toggleItem, deleteItem, clearChecked } = useShoppingList(familyId)
   const [name, setName] = useState('')
@@ -198,11 +195,22 @@ function ShoppingList({ familyId, familyName, inviteCode, c }: {
             </View>
           }
           ListFooterComponent={
-            checkedCount > 0 ? (
-              <TouchableOpacity onPress={clearChecked} style={list.clearBtn}>
-                <Text style={list.clearBtnText}>Clear {checkedCount} checked item{checkedCount !== 1 ? 's' : ''}</Text>
-              </TouchableOpacity>
-            ) : null
+            <>
+              {checkedCount > 0 && (
+                <TouchableOpacity onPress={clearChecked} style={list.clearBtn}>
+                  <Text style={list.clearBtnText}>Clear {checkedCount} checked item{checkedCount !== 1 ? 's' : ''}</Text>
+                </TouchableOpacity>
+              )}
+              {items.length > 0 && (
+                <View style={list.estimateRow}>
+                  <Text style={[list.estimateLabel, { color: c.muted }]}>Estimated total</Text>
+                  <Text style={[list.estimateValue, { color: c.muted }]}>
+                    ~${estimateTotal(items.map(i => i.name)).toFixed(2)}
+                  </Text>
+                </View>
+              )}
+              <Text style={[list.estimateDisclaimer, { color: c.muted }]}>Prices are rough US averages</Text>
+            </>
           }
         />
       )}
@@ -245,8 +253,7 @@ function ShoppingList({ familyId, familyName, inviteCode, c }: {
 // ─── Root ─────────────────────────────────────────────────────────────────────
 
 export default function ShoppingScreen() {
-  const scheme = useColorScheme()
-  const c = scheme === 'dark' ? DARK : LIGHT
+  const c = getTheme(useColorScheme())
   const { family, loading, error, createFamily, joinFamily } = useFamily()
 
   if (loading) {
@@ -328,6 +335,10 @@ const list = StyleSheet.create({
   emptyHint: { fontSize: 14 },
   clearBtn: { alignSelf: 'center', marginTop: 8, paddingVertical: 8, paddingHorizontal: 16 },
   clearBtnText: { color: '#ef4444', fontSize: 14, fontWeight: '600' },
+  estimateRow:        { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 4, paddingVertical: 12, marginTop: 4 },
+  estimateLabel:      { fontSize: 13, fontWeight: '500' },
+  estimateValue:      { fontSize: 13, fontWeight: '700' },
+  estimateDisclaimer: { fontSize: 11, textAlign: 'center', paddingBottom: 12 },
   addBar: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
     padding: 12, borderTopWidth: 1,

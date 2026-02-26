@@ -17,9 +17,7 @@ import {
 import { FontAwesome } from '@expo/vector-icons'
 import { useRecipes, type Recipe } from '@/hooks/useRecipes'
 import { useFamily } from '@/hooks/useFamily'
-
-const LIGHT = { bg: '#f8fafc', card: '#fff', text: '#0f172a', muted: '#94a3b8', border: '#e2e8f0' }
-const DARK  = { bg: '#0f172a', card: '#1e293b', text: '#f1f5f9', muted: '#64748b', border: '#334155' }
+import { getTheme, type AppTheme } from '@/constants/theme'
 
 // ─── Manual add / edit recipe modal ──────────────────────────────────────────
 
@@ -30,7 +28,7 @@ function ManualRecipeModal({ visible, onClose, onSave, c, prefillUrl }: {
     title: string; image_url: string; ingredients: string[]
     instructions: string[]; servings: string; prep_time: string; cook_time: string
   }) => Promise<void>
-  c: typeof LIGHT
+  c: AppTheme
   prefillUrl?: string
 }) {
   const [title, setTitle]           = useState('')
@@ -153,7 +151,7 @@ type NutrientChipDef = {
   isInt?: boolean
 }
 
-function NutritionPanel({ recipe, c }: { recipe: Recipe; c: typeof LIGHT }) {
+function NutritionPanel({ recipe, c }: { recipe: Recipe; c: AppTheme }) {
   const chips: NutrientChipDef[] = [
     { label: 'Calories', icon: '🔥', value: recipe.calories,        unit: 'kcal', isInt: true },
     { label: 'Protein',  icon: '💪', value: recipe.protein_g,       unit: 'g' },
@@ -207,7 +205,7 @@ function RecipeModal({ recipe, onClose, onAddToList, c }: {
   recipe: Recipe
   onClose: () => void
   onAddToList: (recipe: Recipe) => Promise<void>
-  c: typeof LIGHT
+  c: AppTheme
 }) {
   const [adding, setAdding] = useState(false)
 
@@ -321,7 +319,7 @@ function RecipeCard({ recipe, onPress, onDelete, c }: {
   recipe: Recipe
   onPress: () => void
   onDelete: () => void
-  c: typeof LIGHT
+  c: AppTheme
 }) {
   function confirmDelete() {
     if (Platform.OS === 'web') {
@@ -362,8 +360,7 @@ function RecipeCard({ recipe, onPress, onDelete, c }: {
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
 export default function RecipesScreen() {
-  const scheme = useColorScheme()
-  const c = scheme === 'dark' ? DARK : LIGHT
+  const c = getTheme(useColorScheme())
   const { family } = useFamily()
   const { recipes, loading, importing, error, importRecipe, saveManualRecipe, deleteRecipe, addIngredientsToShoppingList } =
     useRecipes(family?.id ?? null)

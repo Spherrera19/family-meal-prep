@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import { useFocusEffect } from 'expo-router'
 import {
   ActivityIndicator,
   Alert,
@@ -17,11 +18,7 @@ import {
 import { useNutritionHistory, type DailyMacros } from '@/hooks/useNutritionHistory'
 import { useUserProfile, type UserProfile } from '@/hooks/useUserProfile'
 import { useWeightLog } from '@/hooks/useWeightLog'
-
-// ─── Theme ────────────────────────────────────────────────────────────────────
-
-const LIGHT = { bg: '#f8fafc', card: '#fff',    text: '#0f172a', muted: '#94a3b8', border: '#e2e8f0' }
-const DARK  = { bg: '#0f172a', card: '#1e293b', text: '#f1f5f9', muted: '#64748b', border: '#334155' }
+import { getTheme, type AppTheme } from '@/constants/theme'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -49,7 +46,7 @@ type BarChartProps = {
   data: DailyMacros[]
   goalCalories: number
   period: 'week' | 'month' | 'all'
-  c: typeof LIGHT
+  c: AppTheme
   onSelect: (d: DailyMacros | null) => void
   selected: DailyMacros | null
 }
@@ -123,7 +120,7 @@ function BarChart({ data, goalCalories, period, c, onSelect, selected }: BarChar
 
 // ─── Sparkline ────────────────────────────────────────────────────────────────
 
-function Sparkline({ logs, unit, c }: { logs: Array<{ date: string; weight: number }>; unit: string; c: typeof LIGHT }) {
+function Sparkline({ logs, unit, c }: { logs: Array<{ date: string; weight: number }>; unit: string; c: AppTheme }) {
   const W = SCREEN_W - 48
   const H = 48
   if (logs.length < 2) return null
@@ -186,7 +183,7 @@ function Sparkline({ logs, unit, c }: { logs: Array<{ date: string; weight: numb
 type Period = 'week' | 'month' | 'all'
 
 export default function NutritionScreen() {
-  const c = useColorScheme() === 'dark' ? DARK : LIGHT
+  const c = getTheme(useColorScheme())
   const [period, setPeriod] = useState<Period>('week')
   const [selected, setSelected] = useState<DailyMacros | null>(null)
 
@@ -213,6 +210,7 @@ export default function NutritionScreen() {
   }, [fetch, range.start, range.end])
 
   useEffect(() => { loadHistory() }, [loadHistory])
+  useFocusEffect(useCallback(() => { loadHistory() }, [loadHistory]))
 
   useEffect(() => {
     setWeightUnit(profile.weight_unit)
