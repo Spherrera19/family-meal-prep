@@ -726,6 +726,26 @@ ${stripped}`,
   }
 }
 
+// ─── Strategy timeout wrapper ─────────────────────────────────────────────────
+
+async function withTimeout<T>(
+  fn: () => Promise<T> | T,
+  ms: number,
+  label: string,
+): Promise<T | null> {
+  try {
+    return await Promise.race([
+      Promise.resolve(fn()),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms)
+      ),
+    ])
+  } catch (err) {
+    console.warn(`[parse-recipe] Strategy "${label}" failed:`, err)
+    return null
+  }
+}
+
 // ─── Handler ─────────────────────────────────────────────────────────────────
 
 serve(async (req) => {
@@ -850,26 +870,30 @@ serve(async (req) => {
     // ── Strategies 2–5: DOM-based ──────────────────────────────────────────
     const { document } = parseHTML(html)
 
-    // Strategy 2: Microdata
-    let extracted: ExtractionResult | null = extractMicrodata(document)
+    const domStrategies = [
+      { label: 'Microdata',         fn: () => extractMicrodata(document),        timeout: 2000 },
+      { label: 'WordPress',         fn: () => extractPlugins(document),          timeout: 2000 },
+      { label: 'Heading heuristic', fn: () => extractHeadingHeuristic(document), timeout: 3000 },
+      { label: 'Claude AI',         fn: () => extractWithClaude(html),           timeout: 8000 },
+    ]
 
-    // Strategy 3: WordPress plugins
-    if (!isValid(extracted)) {
-      extracted = extractPlugins(document)
+    const strategiesAttempted = ['JSON-LD']
+    let extracted: ExtractionResult | null = null
+
+    for (const { label, fn, timeout } of domStrategies) {
+      strategiesAttempted.push(label)
+      extracted = await withTimeout(fn, timeout, label)
+      if (isValid(extracted)) break
     }
 
-    // Strategy 4: Heading heuristic
     if (!isValid(extracted)) {
-      extracted = extractHeadingHeuristic(document)
-    }
-
-    // Strategy 5: Claude API fallback
-    if (!isValid(extracted)) {
-      extracted = await extractWithClaude(html)
-    }
-
-    if (!isValid(extracted)) {
-      return err('No recipe found on this page. Try a direct recipe URL from a food blog or major recipe site.')
+      return new Response(
+        JSON.stringify({
+          error: 'No recipe found on this page. Try a direct recipe URL from a food blog or major recipe site.',
+          strategiesAttempted,
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      )
     }
 
     // Build nutrition from extracted data or USDA fallback
