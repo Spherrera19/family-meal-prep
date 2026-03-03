@@ -7,22 +7,19 @@ type Props = {
   recipe: Recipe
   isArmed: boolean
   isDragging: boolean
-  isEditingDeck: boolean
   onTap: () => void
-  onDelete: () => void
-  onLongPress: () => void              // unused on web; Edit button handles this
   makeDragGesture: (r: Recipe) => any  // unused on web; kept for prop-type parity
   c: AppTheme
 }
 
 export const RecipeListItem = React.memo(function RecipeListItem({
-  recipe, isArmed, isDragging, isEditingDeck, onTap, onDelete, c,
+  recipe, isArmed, isDragging, onTap, c,
 }: Props) {
   return (
     <View style={styles.outer}>
       <TouchableOpacity
         activeOpacity={0.8}
-        onPress={isEditingDeck ? undefined : onTap}
+        onPress={onTap}
         style={[
           styles.chip,
           { backgroundColor: c.bg, borderColor: (isArmed || isDragging) ? '#2563eb' : c.border },
@@ -43,17 +40,6 @@ export const RecipeListItem = React.memo(function RecipeListItem({
         </Text>
         {(isArmed || isDragging) && <View style={styles.armedDot} />}
       </TouchableOpacity>
-
-      {/* X badge — visible in edit mode so web users can delete from the dock */}
-      {isEditingDeck && (
-        <TouchableOpacity
-          onPress={onDelete}
-          style={styles.xBadge}
-          accessibilityLabel="Delete recipe"
-        >
-          <Text style={styles.xBadgeText}>×</Text>
-        </TouchableOpacity>
-      )}
     </View>
   )
 })
@@ -68,6 +54,4 @@ const styles = StyleSheet.create({
   thumbPlaceholder: { width: CHIP_W, height: 70, justifyContent: 'center', alignItems: 'center' },
   title:            { fontSize: 11, fontWeight: '600', padding: 6, textAlign: 'center', lineHeight: 15, flexShrink: 1 },
   armedDot:         { position: 'absolute', top: 6, right: 6, width: 10, height: 10, borderRadius: 5, backgroundColor: '#2563eb', borderWidth: 2, borderColor: '#fff' },
-  xBadge:           { position: 'absolute', top: -6, left: -6, width: 22, height: 22, borderRadius: 11, backgroundColor: '#ef4444', justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: '#fff' },
-  xBadgeText:       { color: '#fff', fontSize: 16, fontWeight: '700', lineHeight: 20, marginTop: -1 },
 })

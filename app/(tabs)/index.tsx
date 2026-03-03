@@ -128,8 +128,7 @@ export default function MealPlanScreen() {
   const [armedRecipe, setArmedRecipe] = useState<Recipe | null>(null)
 
   // Recipe tray state
-  const [isCollapsed,    setIsCollapsed]    = useState(false)
-  const [isEditingDeck,  setIsEditingDeck]  = useState(false)
+  const [isCollapsed, setIsCollapsed] = useState(false)
   const trayAnim = useSharedValue(1)  // 1 = expanded, 0 = collapsed
   const trayBodyStyle = useAnimatedStyle(() => ({
     maxHeight: withTiming(trayAnim.value * 210, { duration: 280 }),
@@ -167,8 +166,12 @@ export default function MealPlanScreen() {
 
   // Native drag-and-drop
   const handleDrop = useCallback((type: string, recipe: Recipe) => {
-    saveMeal(selectedKeyRef.current, type, recipe.title, undefined, recipe.id)
-  }, [saveMeal])
+    if (type === 'trash') {
+      toggleTrayVisibility(recipe.id, false)
+    } else {
+      saveMeal(selectedKeyRef.current, type, recipe.title, undefined, recipe.id)
+    }
+  }, [saveMeal, toggleTrayVisibility])
 
   const { draggedRecipe, hoveredSlot, overlayStyle, slotViewRef, measureSlot, makeDragGesture, setScreenOffset } =
     useDragAndDrop(handleDrop)
@@ -410,20 +413,9 @@ export default function MealPlanScreen() {
           <Text style={[styles.trayTitle, { color: c.muted }]}>RECIPES</Text>
           <View style={styles.trayHeaderRight}>
             {!isCollapsed && (
-              <>
-                {isEditingDeck ? (
-                  <TouchableOpacity onPress={() => setIsEditingDeck(false)} style={styles.trayEditBtn}>
-                    <Text style={styles.trayDoneText}>Done</Text>
-                  </TouchableOpacity>
-                ) : Platform.OS === 'web' ? (
-                  <TouchableOpacity onPress={() => setIsEditingDeck(true)} style={styles.trayEditBtn}>
-                    <Text style={[styles.trayEditText, { color: c.muted }]}>Edit</Text>
-                  </TouchableOpacity>
-                ) : null}
-                <Text style={[styles.trayHint, { color: c.muted }]}>
-                  {Platform.OS !== 'web' ? 'hold to edit · tap to arm' : 'tap to arm · then tap a slot'}
-                </Text>
-              </>
+              <Text style={[styles.trayHint, { color: c.muted }]}>
+                {Platform.OS !== 'web' ? 'drag to remove · tap to arm' : 'tap to arm · then tap a slot'}
+              </Text>
             )}
             <TouchableOpacity onPress={toggleTray} style={styles.collapseBtn}>
               <FontAwesome
@@ -444,21 +436,15 @@ export default function MealPlanScreen() {
               horizontal
               contentContainerStyle={styles.trayList}
               showsHorizontalScrollIndicator={false}
-              scrollEnabled={!draggedRecipe && !isEditingDeck}
+              scrollEnabled={!draggedRecipe}
             >
               {trayRecipes.map(recipe => (
                 <RecipeListItem
                   key={recipe.id}
                   recipe={recipe}
-                  isArmed={!isEditingDeck && armedRecipe?.id === recipe.id}
+                  isArmed={armedRecipe?.id === recipe.id}
                   isDragging={draggedRecipe?.id === recipe.id}
-                  isEditingDeck={isEditingDeck}
-                  onTap={() => {
-                    if (isEditingDeck) return
-                    setArmedRecipe(prev => prev?.id === recipe.id ? null : recipe)
-                  }}
-                  onDelete={() => toggleTrayVisibility(recipe.id, false)}
-                  onLongPress={() => setIsEditingDeck(true)}
+                  onTap={() => setArmedRecipe(prev => prev?.id === recipe.id ? null : recipe)}
                   makeDragGesture={makeDragGesture}
                   c={c}
                 />
@@ -467,6 +453,18 @@ export default function MealPlanScreen() {
           )}
         </Animated.View>
       </View>
+
+      {/* ── Trash drop zone (native only, visible while dragging) ───── */}
+      {Platform.OS !== 'web' && draggedRecipe && (
+        <View
+          ref={r => { slotViewRef.current['trash'] = r }}
+          onLayout={() => measureSlot('trash', slotViewRef.current['trash'])}
+          style={[styles.trashZone, hoveredSlot === 'trash' && styles.trashZoneActive]}
+        >
+          <FontAwesome name="trash-o" size={28} color="#ef4444" />
+          <Text style={styles.trashZoneText}>Drop to remove</Text>
+        </View>
+      )}
 
       {/* ── Drag overlay (native only) ──────────────────────────────── */}
       {Platform.OS !== 'web' && draggedRecipe && (
@@ -616,9 +614,10 @@ const styles = StyleSheet.create({
   trayEmptyText:  { fontSize: 13 },
   trayList:       { paddingHorizontal: 12, paddingTop: 8, gap: 10, paddingBottom: 4 },
   collapseBtn:    { padding: 6 },
-  trayEditBtn:    { paddingHorizontal: 8, paddingVertical: 4 },
-  trayEditText:   { fontSize: 13, fontWeight: '500' },
-  trayDoneText:   { fontSize: 13, fontWeight: '700', color: '#2563eb' },
+
+  trashZone:       { position: 'absolute', bottom: 20, left: 60, right: 60, paddingVertical: 14, borderRadius: 16, borderWidth: 2, borderColor: '#ef4444', borderStyle: 'dashed', backgroundColor: 'rgba(254,226,226,0.9)', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, zIndex: 10 },
+  trashZoneActive: { backgroundColor: 'rgba(254,202,202,0.97)', borderColor: '#dc2626' },
+  trashZoneText:   { color: '#ef4444', fontSize: 15, fontWeight: '700' },
 
   recipeThumb:           { width: 115, height: 70 },
   recipeThumbPlaceholder:{ width: 115, height: 70, justifyContent: 'center', alignItems: 'center' },
