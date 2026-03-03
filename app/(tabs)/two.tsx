@@ -581,7 +581,7 @@ const card = StyleSheet.create({
   pressable: { flex: 1, flexDirection: 'row', alignItems: 'center' },
   image: { width: 90, height: 90 },
   body: { flex: 1, padding: 12, gap: 4 },
-  title: { fontSize: 15, fontWeight: '700', lineHeight: 20 },
+  title: { fontSize: 15, fontWeight: '700', lineHeight: 20, flexShrink: 1 },
   metaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   meta: { fontSize: 12 },
   count: { fontSize: 12, marginTop: 2 },

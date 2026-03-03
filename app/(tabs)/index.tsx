@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActivityIndicator,
-  FlatList,
   Image,
   Modal,
   Platform,
@@ -133,7 +132,7 @@ export default function MealPlanScreen() {
   const [isEditingDeck,  setIsEditingDeck]  = useState(false)
   const trayAnim = useSharedValue(1)  // 1 = expanded, 0 = collapsed
   const trayBodyStyle = useAnimatedStyle(() => ({
-    maxHeight: withTiming(trayAnim.value * 200, { duration: 280 }),
+    maxHeight: withTiming(trayAnim.value * 210, { duration: 280 }),
     opacity:   withTiming(trayAnim.value,        { duration: 200 }),
   }))
 
@@ -416,13 +415,13 @@ export default function MealPlanScreen() {
                   <TouchableOpacity onPress={() => setIsEditingDeck(false)} style={styles.trayEditBtn}>
                     <Text style={styles.trayDoneText}>Done</Text>
                   </TouchableOpacity>
-                ) : (
+                ) : Platform.OS === 'web' ? (
                   <TouchableOpacity onPress={() => setIsEditingDeck(true)} style={styles.trayEditBtn}>
                     <Text style={[styles.trayEditText, { color: c.muted }]}>Edit</Text>
                   </TouchableOpacity>
-                )}
+                ) : null}
                 <Text style={[styles.trayHint, { color: c.muted }]}>
-                  {Platform.OS !== 'web' ? 'hold & drag · or tap to arm' : 'tap to arm · then tap a slot'}
+                  {Platform.OS !== 'web' ? 'hold to edit · tap to arm' : 'tap to arm · then tap a slot'}
                 </Text>
               </>
             )}
@@ -441,15 +440,15 @@ export default function MealPlanScreen() {
               <Text style={[styles.trayEmptyText, { color: c.muted }]}>Star recipes on the Recipes tab to add them here.</Text>
             </View>
           ) : (
-            <FlatList
+            <ScrollView
               horizontal
-              data={trayRecipes}
-              keyExtractor={r => r.id}
               contentContainerStyle={styles.trayList}
               showsHorizontalScrollIndicator={false}
               scrollEnabled={!draggedRecipe && !isEditingDeck}
-              renderItem={({ item: recipe }) => (
+            >
+              {trayRecipes.map(recipe => (
                 <RecipeListItem
+                  key={recipe.id}
                   recipe={recipe}
                   isArmed={!isEditingDeck && armedRecipe?.id === recipe.id}
                   isDragging={draggedRecipe?.id === recipe.id}
@@ -459,11 +458,12 @@ export default function MealPlanScreen() {
                     setArmedRecipe(prev => prev?.id === recipe.id ? null : recipe)
                   }}
                   onDelete={() => toggleTrayVisibility(recipe.id, false)}
+                  onLongPress={() => setIsEditingDeck(true)}
                   makeDragGesture={makeDragGesture}
                   c={c}
                 />
-              )}
-            />
+              ))}
+            </ScrollView>
           )}
         </Animated.View>
       </View>
@@ -614,7 +614,7 @@ const styles = StyleSheet.create({
   trayHint:       { fontSize: 11 },
   trayEmpty:      { paddingHorizontal: 16, paddingBottom: 4 },
   trayEmptyText:  { fontSize: 13 },
-  trayList:       { paddingHorizontal: 12, gap: 10, paddingBottom: 4 },
+  trayList:       { paddingHorizontal: 12, paddingTop: 8, gap: 10, paddingBottom: 4 },
   collapseBtn:    { padding: 6 },
   trayEditBtn:    { paddingHorizontal: 8, paddingVertical: 4 },
   trayEditText:   { fontSize: 13, fontWeight: '500' },
