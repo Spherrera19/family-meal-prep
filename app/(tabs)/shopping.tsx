@@ -113,12 +113,13 @@ function ShoppingList({ familyId, familyName, inviteCode, c }: {
   inviteCode: string
   c: AppTheme
 }) {
-  const { items, loading, error, addItem, toggleItem, deleteItem, clearChecked } = useShoppingList(familyId)
+  const { items, loading, error, addItem, toggleItem, deleteItem, clearChecked, checkAll } = useShoppingList(familyId)
   const [name, setName] = useState('')
   const [quantity, setQuantity] = useState('')
   const [adding, setAdding] = useState(false)
 
   const checkedCount = items.filter(i => i.checked).length
+  const uncheckedCount = items.length - checkedCount
 
   async function handleAdd() {
     if (!name.trim()) return
@@ -196,6 +197,11 @@ function ShoppingList({ familyId, familyName, inviteCode, c }: {
           }
           ListFooterComponent={
             <>
+              {uncheckedCount > 0 && (
+                <TouchableOpacity onPress={checkAll} style={list.selectAllBtn}>
+                  <Text style={list.selectAllText}>Select all {uncheckedCount} item{uncheckedCount !== 1 ? 's' : ''}</Text>
+                </TouchableOpacity>
+              )}
               {checkedCount > 0 && (
                 <TouchableOpacity onPress={clearChecked} style={list.clearBtn}>
                   <Text style={list.clearBtnText}>Clear {checkedCount} checked item{checkedCount !== 1 ? 's' : ''}</Text>
@@ -333,6 +339,8 @@ const list = StyleSheet.create({
   emptyIcon: { fontSize: 40 },
   emptyText: { fontSize: 17, fontWeight: '600' },
   emptyHint: { fontSize: 14 },
+  selectAllBtn:  { alignSelf: 'center', marginTop: 8, paddingVertical: 8, paddingHorizontal: 16 },
+  selectAllText: { color: '#2563eb', fontSize: 14, fontWeight: '600' },
   clearBtn: { alignSelf: 'center', marginTop: 8, paddingVertical: 8, paddingHorizontal: 16 },
   clearBtnText: { color: '#ef4444', fontSize: 14, fontWeight: '600' },
   estimateRow:        { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 4, paddingVertical: 12, marginTop: 4 },

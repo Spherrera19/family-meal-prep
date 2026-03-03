@@ -124,5 +124,24 @@ export function useShoppingList(familyId: string | null) {
     if (error) setError(error.message)
   }
 
-  return { items, loading, error, addItem, toggleItem, deleteItem, clearChecked }
+  async function checkAll() {
+    if (!familyId || !session) return
+    setItems(prev => prev.map(i => ({ ...i, checked: true })))
+    const { error } = await supabase
+      .from('shopping_items')
+      .update({ checked: true })
+      .eq('family_id', familyId)
+    if (error) setError(error.message)
+  }
+
+  async function updateItemQuantity(id: string, quantity: string) {
+    setItems(prev => prev.map(i => i.id === id ? { ...i, quantity } : i))
+    const { error } = await supabase
+      .from('shopping_items')
+      .update({ quantity })
+      .eq('id', id)
+    if (error) setError(error.message)
+  }
+
+  return { items, loading, error, addItem, toggleItem, deleteItem, clearChecked, checkAll, updateItemQuantity }
 }
