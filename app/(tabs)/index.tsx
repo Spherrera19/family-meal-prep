@@ -445,6 +445,7 @@ export default function MealPlanScreen() {
                   isArmed={armedRecipe?.id === recipe.id}
                   isDragging={draggedRecipe?.id === recipe.id}
                   onTap={() => setArmedRecipe(prev => prev?.id === recipe.id ? null : recipe)}
+                  onRemove={() => toggleTrayVisibility(recipe.id, false)}
                   makeDragGesture={makeDragGesture}
                   c={c}
                 />

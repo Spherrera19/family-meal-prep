@@ -44,10 +44,21 @@ export function useDragAndDrop(onDrop: (type: string, recipe: Recipe) => void) {
 
   // ── JS-thread helpers (never called directly inside worklets) ─────────────
 
+  // Re-measure every registered slot so coordinates are fresh after any scroll
+  const jsMeasureAll = useCallback(() => {
+    for (const [type, ref] of Object.entries(slotViewRef.current)) {
+      if (!ref) continue
+      ref.measure((_x: number, _y: number, w: number, h: number, pageX: number, pageY: number) => {
+        slotRects.current[type] = { x: pageX, y: pageY, w, h }
+      })
+    }
+  }, [])
+
   const jsBegin = useCallback((recipe: Recipe) => {
+    jsMeasureAll()
     draggedRef.current = recipe
     setDraggedRecipe(recipe)
-  }, [])
+  }, [jsMeasureAll])
 
   const jsUpdate = useCallback((px: number, py: number) => {
     let found: string | null = null

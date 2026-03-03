@@ -16,6 +16,7 @@ type Props = {
   isArmed: boolean
   isDragging: boolean
   onTap: () => void
+  onRemove?: () => void  // unused on native; drag-to-trash handles removal
   makeDragGesture: (r: Recipe) => any
   c: AppTheme
 }
