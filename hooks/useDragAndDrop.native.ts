@@ -1,6 +1,8 @@
 import { useCallback, useRef, useState } from 'react'
+import { Dimensions } from 'react-native'
 import {
   runOnJS,
+  scrollTo,
   useAnimatedStyle,
   useSharedValue,
   withSpring,
@@ -15,7 +17,7 @@ type Rect = { x: number; y: number; w: number; h: number }
 const CARD_W = 100
 const CARD_H = 110 // image (70) + title area (~40)
 
-export function useDragAndDrop(onDrop: (type: string, recipe: Recipe) => void) {
+export function useDragAndDrop(onDrop: (type: string, recipe: Recipe) => void, scrollRef?: any) {
   const onDropRef = useRef(onDrop)
   onDropRef.current = onDrop
 
@@ -24,6 +26,8 @@ export function useDragAndDrop(onDrop: (type: string, recipe: Recipe) => void) {
   const dragScale   = useSharedValue(1)
   const dragOpacity = useSharedValue(0)
   const isActive    = useSharedValue(false)
+  const scrollOffset = useSharedValue(0)
+  const screenH     = useSharedValue(Dimensions.get('window').height)
 
   // Screen view offset — set once on layout, read inside worklets
   const screenX = useSharedValue(0)
@@ -115,6 +119,21 @@ export function useDragAndDrop(onDrop: (type: string, recipe: Recipe) => void) {
         dragX.value = e.absoluteX - screenX.value - CARD_W / 2
         dragY.value = e.absoluteY - screenY.value - CARD_H / 4
         runOnJS(jsUpdate)(e.absoluteX, e.absoluteY)
+
+        // Auto-scroll when finger is within 150px of screen edges
+        const ZONE = 150
+        const SPEED = 8
+        if (scrollRef && e.absoluteY < ZONE) {
+          const factor = 1 - e.absoluteY / ZONE
+          const newY = Math.max(0, scrollOffset.value - SPEED * factor)
+          scrollTo(scrollRef, 0, newY, false)
+          scrollOffset.value = newY
+        } else if (scrollRef && e.absoluteY > screenH.value - ZONE) {
+          const factor = (e.absoluteY - (screenH.value - ZONE)) / ZONE
+          const newY = scrollOffset.value + SPEED * factor
+          scrollTo(scrollRef, 0, newY, false)
+          scrollOffset.value = newY
+        }
       })
       .onEnd((e) => {
         'worklet'
@@ -146,5 +165,6 @@ export function useDragAndDrop(onDrop: (type: string, recipe: Recipe) => void) {
   return {
     draggedRecipe, hoveredSlot, overlayStyle,
     slotViewRef, measureSlot, makeDragGesture, setScreenOffset,
+    scrollOffset,
   }
 }

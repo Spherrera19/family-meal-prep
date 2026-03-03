@@ -37,9 +37,11 @@ export const RecipeListItem = React.memo(function RecipeListItem({
             </View>
           )
         }
-        <Text style={[styles.title, { color: c.text }]} numberOfLines={3}>
-          {recipe.title}
-        </Text>
+        <View style={styles.titleWrap}>
+          <Text style={[styles.title, { color: c.text }]} numberOfLines={3}>
+            {recipe.title}
+          </Text>
+        </View>
         {(isArmed || isDragging) && <View style={styles.armedDot} />}
       </TouchableOpacity>
 
@@ -60,7 +62,8 @@ const CHIP_W = 100
 
 const styles = StyleSheet.create({
   outer:            { width: CHIP_W },
-  chip:             { width: CHIP_W, borderRadius: 12, borderWidth: 1.5, overflow: 'hidden', alignItems: 'center' },
+  chip:             { width: CHIP_W, borderRadius: 12, borderWidth: 1.5, overflow: 'hidden', alignItems: 'center', minHeight: 110 },
+  titleWrap:        { flex: 1, justifyContent: 'center', alignSelf: 'stretch' },
   chipArmed:        { borderColor: '#2563eb', backgroundColor: '#eff6ff' },
   thumb:            { width: CHIP_W, height: 70 },
   thumbPlaceholder: { width: CHIP_W, height: 70, justifyContent: 'center', alignItems: 'center' },

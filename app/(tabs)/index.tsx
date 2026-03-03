@@ -15,6 +15,7 @@ import {
 } from 'react-native'
 import { getTheme, type AppTheme } from '@/constants/theme'
 import Animated, {
+  useAnimatedRef,
   useSharedValue,
   useAnimatedStyle,
   withTiming,
@@ -135,6 +136,9 @@ export default function MealPlanScreen() {
     opacity:   withTiming(trayAnim.value,        { duration: 200 }),
   }))
 
+  // Animated ref for the main meal-slot ScrollView (enables native auto-scroll)
+  const slotsScrollRef = useAnimatedRef<Animated.ScrollView>()
+
   useEffect(() => {
     trayAnim.value = isCollapsed ? 0 : 1
   }, [isCollapsed, trayAnim])
@@ -173,8 +177,63 @@ export default function MealPlanScreen() {
     }
   }, [saveMeal, toggleTrayVisibility])
 
-  const { draggedRecipe, hoveredSlot, overlayStyle, slotViewRef, measureSlot, makeDragGesture, setScreenOffset } =
-    useDragAndDrop(handleDrop)
+  const { draggedRecipe, hoveredSlot, overlayStyle, slotViewRef, measureSlot, makeDragGesture, setScreenOffset, scrollOffset } =
+    useDragAndDrop(handleDrop, slotsScrollRef)
+
+  // ── Dock auto-collapse while dragging/armed ───────────────────────────────
+
+  const preDragCollapsed = useRef(false)
+  const isDragOrArmed    = !!(draggedRecipe || armedRecipe)
+
+  useEffect(() => {
+    if (isDragOrArmed) {
+      preDragCollapsed.current = isCollapsed
+      setIsCollapsed(true)
+    } else {
+      setIsCollapsed(preDragCollapsed.current)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDragOrArmed])
+
+  // ── Web: mouse ghost + shake-to-cancel + right-click cancel ──────────────
+
+  const [mousePos, setMousePos] = useState({ x: 0, y: 0 })
+  const shakeRef = useRef({ reversals: 0, lastDir: 0 })
+
+  useEffect(() => {
+    if (Platform.OS !== 'web') return
+    if (!armedRecipe) return
+
+    function onMouseMove(e: any) {
+      setMousePos({ x: e.clientX, y: e.clientY })
+      const dx: number = e.movementX
+      if (Math.abs(dx) > 50) {
+        const dir = dx > 0 ? 1 : -1
+        if (dir !== shakeRef.current.lastDir && shakeRef.current.lastDir !== 0) {
+          shakeRef.current.reversals++
+          if (shakeRef.current.reversals >= 4) {
+            setArmedRecipe(null)
+            shakeRef.current = { reversals: 0, lastDir: 0 }
+            return
+          }
+        }
+        shakeRef.current.lastDir = dir
+      }
+    }
+
+    function onContextMenu(e: any) {
+      e.preventDefault()
+      setArmedRecipe(null)
+    }
+
+    window.addEventListener('mousemove', onMouseMove)
+    window.addEventListener('contextmenu', onContextMenu)
+    return () => {
+      window.removeEventListener('mousemove', onMouseMove)
+      window.removeEventListener('contextmenu', onContextMenu)
+      shakeRef.current = { reversals: 0, lastDir: 0 }
+    }
+  }, [armedRecipe])
 
   // ── Week ──────────────────────────────────────────────────────────────────
 
@@ -334,8 +393,47 @@ export default function MealPlanScreen() {
         </View>
       )}
 
+      {/* ── Web: floating ghost card pinned to cursor ──────────────── */}
+      {Platform.OS === 'web' && armedRecipe && (
+        <View
+          style={{
+            position: 'fixed' as any,
+            left: mousePos.x - 50,
+            top: mousePos.y - 35,
+            width: 100,
+            borderRadius: 12,
+            borderWidth: 2,
+            borderColor: '#2563eb',
+            backgroundColor: '#eff6ff',
+            overflow: 'hidden',
+            alignItems: 'center',
+            zIndex: 999,
+            pointerEvents: 'none' as any,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 8 },
+            shadowOpacity: 0.25,
+            shadowRadius: 12,
+          }}
+        >
+          {armedRecipe.image_url
+            ? <Image source={{ uri: armedRecipe.image_url }} style={{ width: 100, height: 70 }} />
+            : <View style={{ width: 100, height: 70, backgroundColor: '#e2e8f0', justifyContent: 'center', alignItems: 'center' }}><Text style={{ fontSize: 20 }}>🍽️</Text></View>
+          }
+          <Text style={{ fontSize: 11, fontWeight: '600', padding: 6, textAlign: 'center', lineHeight: 15, color: c.text }} numberOfLines={3}>
+            {armedRecipe.title}
+          </Text>
+        </View>
+      )}
+
       {/* ── Meal slots ─────────────────────────────────────────────── */}
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.slotsContainer} showsVerticalScrollIndicator={false}>
+      <Animated.ScrollView
+        ref={slotsScrollRef}
+        style={{ flex: 1 }}
+        contentContainerStyle={styles.slotsContainer}
+        showsVerticalScrollIndicator={false}
+        onScroll={e => { scrollOffset.value = e.nativeEvent.contentOffset.y }}
+        scrollEventThrottle={16}
+      >
         {slots.map(slot => {
           const meal      = dayPlan[slot.type]
           const isHovered = hoveredSlot === slot.type
@@ -405,7 +503,7 @@ export default function MealPlanScreen() {
           <FontAwesome name="plus" size={13} color={c.muted} />
           <Text style={[styles.addSlotText, { color: c.muted }]}>Add meal or snack</Text>
         </TouchableOpacity>
-      </ScrollView>
+      </Animated.ScrollView>
 
       {/* ── Recipe tray ────────────────────────────────────────────── */}
       <View style={[styles.tray, { backgroundColor: c.card, borderTopColor: c.border }]}>
@@ -616,7 +714,7 @@ const styles = StyleSheet.create({
   trayList:       { paddingHorizontal: 12, paddingTop: 8, gap: 10, paddingBottom: 4 },
   collapseBtn:    { padding: 6 },
 
-  trashZone:       { position: 'absolute', bottom: 20, left: 60, right: 60, paddingVertical: 14, borderRadius: 16, borderWidth: 2, borderColor: '#ef4444', borderStyle: 'dashed', backgroundColor: 'rgba(254,226,226,0.9)', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, zIndex: 10 },
+  trashZone:       { position: 'absolute', bottom: 20, left: '50%' as any, marginLeft: -70, width: 140, height: 60, borderRadius: 30, borderWidth: 2, borderColor: '#ef4444', borderStyle: 'dashed', backgroundColor: 'rgba(254,226,226,0.9)', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, zIndex: 10 },
   trashZoneActive: { backgroundColor: 'rgba(254,202,202,0.97)', borderColor: '#dc2626' },
   trashZoneText:   { color: '#ef4444', fontSize: 15, fontWeight: '700' },
 
