@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
   Image,
   Modal,
@@ -16,7 +15,11 @@ import {
   useColorScheme,
 } from 'react-native'
 import { getTheme, type AppTheme } from '@/constants/theme'
-import Animated from 'react-native-reanimated'
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+} from 'react-native-reanimated'
 import { FontAwesome } from '@expo/vector-icons'
 import { useMealPlan } from '@/hooks/useMealPlan'
 import { useRecipes, type Recipe } from '@/hooks/useRecipes'
@@ -24,7 +27,7 @@ import { useFamily } from '@/hooks/useFamily'
 import { useDragAndDrop } from '@/hooks/useDragAndDrop'
 import { useUserProfile } from '@/hooks/useUserProfile'
 import { getDayNutrition } from '@/utils/nutrition'
-import { DragGestureWrap } from '@/components/DragGestureWrap'
+import { RecipeListItem } from '@/components/RecipeListItem'
 
 // ─── Slot config & helpers ────────────────────────────────────────────────────
 
@@ -93,44 +96,6 @@ function getWeekDates(anchor: Date): Date[] {
 
 // ─── Theme ────────────────────────────────────────────────────────────────────
 
-// ─── RecipeChip — memoised to avoid recreating gesture every render ───────────
-
-type ChipProps = {
-  recipe: Recipe
-  isArmed: boolean
-  isDragging: boolean
-  onTap: () => void
-  onDelete: () => void
-  makeDragGesture: (r: Recipe) => any
-  c: AppTheme
-}
-
-const RecipeChip = React.memo(function RecipeChip({ recipe, isArmed, isDragging, onTap, onDelete, makeDragGesture, c }: ChipProps) {
-  // Gesture is stable as long as recipe.id and makeDragGesture don't change
-  const gesture = useMemo(() => makeDragGesture(recipe), [recipe.id, makeDragGesture])
-  return (
-    <DragGestureWrap gesture={gesture}>
-      <TouchableOpacity
-        activeOpacity={0.8}
-        onPress={onTap}
-        onLongPress={onDelete}
-        style={[
-          styles.recipeChip,
-          { backgroundColor: c.bg, borderColor: (isArmed || isDragging) ? '#2563eb' : c.border },
-          (isArmed || isDragging) && styles.recipeChipArmed,
-          isDragging && { opacity: 0.4 },
-        ]}
-      >
-        {recipe.image_url
-          ? <Image source={{ uri: recipe.image_url }} style={styles.recipeThumb} />
-          : <View style={[styles.recipeThumbPlaceholder, { backgroundColor: c.border }]}><Text style={{ fontSize: 20 }}>🍽️</Text></View>
-        }
-        <Text style={[styles.recipeChipTitle, { color: c.text }]} numberOfLines={2}>{recipe.title}</Text>
-        {(isArmed || isDragging) && <View style={styles.armedDot} />}
-      </TouchableOpacity>
-    </DragGestureWrap>
-  )
-})
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
@@ -152,14 +117,33 @@ export default function MealPlanScreen() {
 
   const { plan, loading, saving, error, saveMeal, deleteMeal } = useMealPlan(startDate, endDate)
   const { family }  = useFamily()
-  const { recipes, deleteRecipe } = useRecipes(family?.id ?? null)
+  const { recipes, toggleTrayVisibility } = useRecipes(family?.id ?? null)
   const { profile } = useUserProfile()
+
+  const trayRecipes = useMemo(() => recipes.filter(r => r.show_in_tray), [recipes])
 
   // Fully-customisable slot list — start with defaults, user can delete any
   const [slots, setSlots] = useState<SlotConfig[]>(DEFAULT_SLOTS)
 
   // Arm-and-place (web + native tap fallback)
   const [armedRecipe, setArmedRecipe] = useState<Recipe | null>(null)
+
+  // Recipe tray state
+  const [isCollapsed,    setIsCollapsed]    = useState(false)
+  const [isEditingDeck,  setIsEditingDeck]  = useState(false)
+  const trayAnim = useSharedValue(1)  // 1 = expanded, 0 = collapsed
+  const trayBodyStyle = useAnimatedStyle(() => ({
+    maxHeight: withTiming(trayAnim.value * 200, { duration: 280 }),
+    opacity:   withTiming(trayAnim.value,        { duration: 200 }),
+  }))
+
+  useEffect(() => {
+    trayAnim.value = isCollapsed ? 0 : 1
+  }, [isCollapsed, trayAnim])
+
+  function toggleTray() {
+    setIsCollapsed(prev => !prev)
+  }
 
   // Modals
   const [mealModal,   setMealModal]   = useState(false)
@@ -425,40 +409,63 @@ export default function MealPlanScreen() {
       <View style={[styles.tray, { backgroundColor: c.card, borderTopColor: c.border }]}>
         <View style={styles.trayHeader}>
           <Text style={[styles.trayTitle, { color: c.muted }]}>RECIPES</Text>
-          <Text style={[styles.trayHint, { color: c.muted }]}>
-            {Platform.OS !== 'web' ? 'hold & drag · or tap to arm' : 'tap to arm · then tap a slot'}
-          </Text>
-        </View>
-        {recipes.length === 0 ? (
-          <View style={styles.trayEmpty}>
-            <Text style={[styles.trayEmptyText, { color: c.muted }]}>Import recipes from the Recipes tab.</Text>
-          </View>
-        ) : (
-          <FlatList
-            horizontal
-            data={recipes}
-            keyExtractor={r => r.id}
-            contentContainerStyle={styles.trayList}
-            showsHorizontalScrollIndicator={false}
-            scrollEnabled={!draggedRecipe}
-            renderItem={({ item: recipe }) => (
-              <RecipeChip
-                recipe={recipe}
-                isArmed={armedRecipe?.id === recipe.id}
-                isDragging={draggedRecipe?.id === recipe.id}
-                onTap={() => setArmedRecipe(prev => prev?.id === recipe.id ? null : recipe)}
-                onDelete={() =>
-                  Alert.alert('Delete recipe?', recipe.title, [
-                    { text: 'Cancel', style: 'cancel' },
-                    { text: 'Delete', style: 'destructive', onPress: () => deleteRecipe(recipe.id) },
-                  ])
-                }
-                makeDragGesture={makeDragGesture}
-                c={c}
-              />
+          <View style={styles.trayHeaderRight}>
+            {!isCollapsed && (
+              <>
+                {isEditingDeck ? (
+                  <TouchableOpacity onPress={() => setIsEditingDeck(false)} style={styles.trayEditBtn}>
+                    <Text style={styles.trayDoneText}>Done</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <TouchableOpacity onPress={() => setIsEditingDeck(true)} style={styles.trayEditBtn}>
+                    <Text style={[styles.trayEditText, { color: c.muted }]}>Edit</Text>
+                  </TouchableOpacity>
+                )}
+                <Text style={[styles.trayHint, { color: c.muted }]}>
+                  {Platform.OS !== 'web' ? 'hold & drag · or tap to arm' : 'tap to arm · then tap a slot'}
+                </Text>
+              </>
             )}
-          />
-        )}
+            <TouchableOpacity onPress={toggleTray} style={styles.collapseBtn}>
+              <FontAwesome
+                name={isCollapsed ? 'chevron-up' : 'chevron-down'}
+                size={12}
+                color={c.muted}
+              />
+            </TouchableOpacity>
+          </View>
+        </View>
+        <Animated.View style={[{ overflow: 'hidden' }, trayBodyStyle]}>
+          {trayRecipes.length === 0 ? (
+            <View style={styles.trayEmpty}>
+              <Text style={[styles.trayEmptyText, { color: c.muted }]}>Star recipes on the Recipes tab to add them here.</Text>
+            </View>
+          ) : (
+            <FlatList
+              horizontal
+              data={trayRecipes}
+              keyExtractor={r => r.id}
+              contentContainerStyle={styles.trayList}
+              showsHorizontalScrollIndicator={false}
+              scrollEnabled={!draggedRecipe && !isEditingDeck}
+              renderItem={({ item: recipe }) => (
+                <RecipeListItem
+                  recipe={recipe}
+                  isArmed={!isEditingDeck && armedRecipe?.id === recipe.id}
+                  isDragging={draggedRecipe?.id === recipe.id}
+                  isEditingDeck={isEditingDeck}
+                  onTap={() => {
+                    if (isEditingDeck) return
+                    setArmedRecipe(prev => prev?.id === recipe.id ? null : recipe)
+                  }}
+                  onDelete={() => toggleTrayVisibility(recipe.id, false)}
+                  makeDragGesture={makeDragGesture}
+                  c={c}
+                />
+              )}
+            />
+          )}
+        </Animated.View>
       </View>
 
       {/* ── Drag overlay (native only) ──────────────────────────────── */}
@@ -600,20 +607,22 @@ const styles = StyleSheet.create({
   addSlotBtn:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderWidth: 1.5, borderStyle: 'dashed', borderRadius: 14, paddingVertical: 14, marginBottom: 12 },
   addSlotText: { fontSize: 14, fontWeight: '500' },
 
-  tray:          { borderTopWidth: 1, paddingTop: 10, paddingBottom: 12 },
-  trayHeader:    { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, marginBottom: 8 },
-  trayTitle:     { fontSize: 11, fontWeight: '700', letterSpacing: 0.8 },
-  trayHint:      { fontSize: 11 },
-  trayEmpty:     { paddingHorizontal: 16, paddingBottom: 4 },
-  trayEmptyText: { fontSize: 13 },
-  trayList:      { paddingHorizontal: 12, gap: 10 },
+  tray:           { borderTopWidth: 1, paddingTop: 10, paddingBottom: 12 },
+  trayHeader:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, marginBottom: 8 },
+  trayHeaderRight:{ flexDirection: 'row', alignItems: 'center', gap: 8 },
+  trayTitle:      { fontSize: 11, fontWeight: '700', letterSpacing: 0.8 },
+  trayHint:       { fontSize: 11 },
+  trayEmpty:      { paddingHorizontal: 16, paddingBottom: 4 },
+  trayEmptyText:  { fontSize: 13 },
+  trayList:       { paddingHorizontal: 12, gap: 10, paddingBottom: 4 },
+  collapseBtn:    { padding: 6 },
+  trayEditBtn:    { paddingHorizontal: 8, paddingVertical: 4 },
+  trayEditText:   { fontSize: 13, fontWeight: '500' },
+  trayDoneText:   { fontSize: 13, fontWeight: '700', color: '#2563eb' },
 
-  recipeChip:            { width: 100, borderRadius: 12, borderWidth: 1.5, overflow: 'hidden', alignItems: 'center' },
-  recipeChipArmed:       { borderColor: '#2563eb', backgroundColor: '#eff6ff' },
   recipeThumb:           { width: 100, height: 70 },
   recipeThumbPlaceholder:{ width: 100, height: 70, justifyContent: 'center', alignItems: 'center' },
   recipeChipTitle:       { fontSize: 11, fontWeight: '600', padding: 6, textAlign: 'center', lineHeight: 15 },
-  armedDot:              { position: 'absolute', top: 6, right: 6, width: 10, height: 10, borderRadius: 5, backgroundColor: '#2563eb', borderWidth: 2, borderColor: '#fff' },
 
   dragOverlay: { position: 'absolute', width: 100, borderRadius: 12, borderWidth: 2, borderColor: '#2563eb', backgroundColor: '#eff6ff', overflow: 'hidden', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.25, shadowRadius: 12, elevation: 12 },
 

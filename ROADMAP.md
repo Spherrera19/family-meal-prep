@@ -19,6 +19,7 @@ The app is functional with the following features shipped:
 - USDA FoodData Central nutrition extraction with ingredient parsing
 - Family shopping list with Supabase Realtime sync
 - Recipes with Supabase Realtime sync (cross-tab and multi-user reactivity) ✅
+- Curated Recipe Dock: `show_in_tray` column decouples tray from master recipe list; X badge unpins (no delete); star toggle in Recipes tab pins/unpins ✅
 - Nutrition tracking screen with daily macros + weight log
 - Auth (email/password), dark mode, RLS, 10 migrations
 - Jest tests for `useUserProfile` and `useWeightLog`
@@ -193,6 +194,8 @@ git commit -m "feat: add per-strategy timeouts and structured fallback errors in
 ## Phase 3: Cross-Platform UI/UX Overhaul
 
 **Goal:** Polish the UI with blur effects and fluid animations; ensure all gesture/animation code is strictly separated between Web and Native.
+
+> **Architecture note (implemented):** The Meal Plan recipe dock is now a curated view driven by `recipes.show_in_tray`. The Recipes tab is the *only* place where `deleteRecipe` (hard delete) is called. The dock's X badge calls `toggleTrayVisibility(id, false)` — a soft unpin with no data loss.
 
 ---
 

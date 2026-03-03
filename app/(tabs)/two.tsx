@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import {
   ActivityIndicator,
   Alert,
@@ -201,13 +201,30 @@ function NutritionPanel({ recipe, c }: { recipe: Recipe; c: AppTheme }) {
 
 // ─── Recipe detail modal ──────────────────────────────────────────────────────
 
-function RecipeModal({ recipe, onClose, onAddToList, c }: {
+function RecipeModal({ recipe, onClose, onAddToList, onToggleTray, c }: {
   recipe: Recipe
   onClose: () => void
   onAddToList: (recipe: Recipe) => Promise<void>
+  onToggleTray: () => void
   c: AppTheme
 }) {
   const [adding, setAdding] = useState(false)
+  const [servings, setServings] = useState(1)
+
+  const scaledRecipe = useMemo<Recipe>(() => {
+    if (servings === 1) return recipe
+    return {
+      ...recipe,
+      calories:          recipe.calories          != null ? Math.round(recipe.calories * servings)          : undefined,
+      protein_g:         recipe.protein_g         != null ? Math.round(recipe.protein_g * servings)         : undefined,
+      carbs_g:           recipe.carbs_g           != null ? Math.round(recipe.carbs_g * servings)           : undefined,
+      fat_g:             recipe.fat_g             != null ? Math.round(recipe.fat_g * servings)             : undefined,
+      sodium_mg:         recipe.sodium_mg         != null ? Math.round(recipe.sodium_mg * servings)         : undefined,
+      fiber_g:           recipe.fiber_g           != null ? +((recipe.fiber_g * servings).toFixed(1))       : undefined,
+      sugar_g:           recipe.sugar_g           != null ? +((recipe.sugar_g * servings).toFixed(1))       : undefined,
+      saturated_fat_g:   recipe.saturated_fat_g   != null ? +((recipe.saturated_fat_g * servings).toFixed(1)) : undefined,
+    }
+  }, [recipe, servings])
 
   async function handleAddToList() {
     setAdding(true)
@@ -223,7 +240,9 @@ function RecipeModal({ recipe, onClose, onAddToList, c }: {
             <FontAwesome name="chevron-down" size={16} color={c.muted} />
           </TouchableOpacity>
           <Text style={[modal.headerTitle, { color: c.text }]} numberOfLines={1}>{recipe.title}</Text>
-          <View style={{ width: 36 }} />
+          <TouchableOpacity onPress={onToggleTray} style={modal.starBtn}>
+            <FontAwesome name={recipe.show_in_tray ? 'star' : 'star-o'} size={20} color={recipe.show_in_tray ? '#f59e0b' : c.muted} />
+          </TouchableOpacity>
         </View>
 
         <ScrollView contentContainerStyle={modal.scroll} showsVerticalScrollIndicator={false}>
@@ -258,7 +277,32 @@ function RecipeModal({ recipe, onClose, onAddToList, c }: {
             </View>
           </View>
 
-          <NutritionPanel recipe={recipe} c={c} />
+          {/* Serving size stepper — only shown when nutrition data is present */}
+          {(recipe.calories != null || recipe.protein_g != null) && (
+            <View style={modal.stepperRow}>
+              <Text style={[modal.stepperLabel, { color: c.muted }]}>Servings</Text>
+              <View style={[modal.stepper, { backgroundColor: c.card, borderColor: c.border }]}>
+                <TouchableOpacity
+                  onPress={() => setServings(s => Math.max(0.5, +(s - 0.5).toFixed(1)))}
+                  style={modal.stepperBtn}
+                  disabled={servings <= 0.5}
+                >
+                  <Text style={[modal.stepperBtnText, { color: servings <= 0.5 ? c.muted : c.text }]}>−</Text>
+                </TouchableOpacity>
+                <Text style={[modal.stepperValue, { color: c.text }]}>
+                  {servings % 1 === 0 ? servings.toFixed(0) : servings.toFixed(1)}×
+                </Text>
+                <TouchableOpacity
+                  onPress={() => setServings(s => +(s + 0.5).toFixed(1))}
+                  style={modal.stepperBtn}
+                >
+                  <Text style={[modal.stepperBtnText, { color: c.text }]}>+</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+
+          <NutritionPanel recipe={scaledRecipe} c={c} />
 
           {recipe.ingredients.length > 0 && (
             <TouchableOpacity
@@ -315,10 +359,11 @@ function RecipeModal({ recipe, onClose, onAddToList, c }: {
 
 // ─── Recipe card ──────────────────────────────────────────────────────────────
 
-function RecipeCard({ recipe, onPress, onDelete, c }: {
+function RecipeCard({ recipe, onPress, onDelete, onToggleTray, c }: {
   recipe: Recipe
   onPress: () => void
   onDelete: () => void
+  onToggleTray: () => void
   c: AppTheme
 }) {
   function confirmDelete() {
@@ -350,7 +395,10 @@ function RecipeCard({ recipe, onPress, onDelete, c }: {
           </Text>
         </View>
       </TouchableOpacity>
-      <TouchableOpacity onPress={confirmDelete} style={card.deleteBtn}>
+      <TouchableOpacity onPress={onToggleTray} style={card.actionBtn}>
+        <FontAwesome name={recipe.show_in_tray ? 'star' : 'star-o'} size={15} color={recipe.show_in_tray ? '#f59e0b' : c.muted} />
+      </TouchableOpacity>
+      <TouchableOpacity onPress={confirmDelete} style={card.actionBtn}>
         <FontAwesome name="trash-o" size={15} color={c.muted} />
       </TouchableOpacity>
     </View>
@@ -362,11 +410,12 @@ function RecipeCard({ recipe, onPress, onDelete, c }: {
 export default function RecipesScreen() {
   const c = getTheme(useColorScheme())
   const { family } = useFamily()
-  const { recipes, loading, importing, error, importRecipe, saveManualRecipe, deleteRecipe, addIngredientsToShoppingList } =
+  const { recipes, loading, importing, error, importRecipe, saveManualRecipe, deleteRecipe, toggleTrayVisibility, addIngredientsToShoppingList } =
     useRecipes(family?.id ?? null)
 
   const [url, setUrl] = useState('')
-  const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null)
+  const [selectedRecipeId, setSelectedRecipeId] = useState<string | null>(null)
+  const selectedRecipe = selectedRecipeId ? (recipes.find(r => r.id === selectedRecipeId) ?? null) : null
   const [manualOpen, setManualOpen] = useState(false)
 
   async function handleImport() {
@@ -375,7 +424,7 @@ export default function RecipesScreen() {
     const recipe = await importRecipe(trimmed)
     if (recipe) {
       setUrl('')
-      setSelectedRecipe(recipe)
+      setSelectedRecipeId(recipe.id)
     } else {
       // Import failed — open the manual entry modal so the user can paste it themselves
       setManualOpen(true)
@@ -387,7 +436,7 @@ export default function RecipesScreen() {
     if (recipe) {
       setManualOpen(false)
       setUrl('')
-      setSelectedRecipe(recipe)
+      setSelectedRecipeId(recipe.id)
     }
   }
 
@@ -462,8 +511,9 @@ export default function RecipesScreen() {
           renderItem={({ item }) => (
             <RecipeCard
               recipe={item}
-              onPress={() => setSelectedRecipe(item)}
+              onPress={() => setSelectedRecipeId(item.id)}
               onDelete={() => deleteRecipe(item.id)}
+              onToggleTray={() => toggleTrayVisibility(item.id, !item.show_in_tray)}
               c={c}
             />
           )}
@@ -482,8 +532,9 @@ export default function RecipesScreen() {
       {selectedRecipe && (
         <RecipeModal
           recipe={selectedRecipe}
-          onClose={() => setSelectedRecipe(null)}
+          onClose={() => setSelectedRecipeId(null)}
           onAddToList={handleAddToList}
+          onToggleTray={() => toggleTrayVisibility(selectedRecipe.id, !selectedRecipe.show_in_tray)}
           c={c}
         />
       )}
@@ -534,7 +585,7 @@ const card = StyleSheet.create({
   metaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   meta: { fontSize: 12 },
   count: { fontSize: 12, marginTop: 2 },
-  deleteBtn: { padding: 14 },
+  actionBtn: { padding: 14 },
 })
 
 const modal = StyleSheet.create({
@@ -544,6 +595,7 @@ const modal = StyleSheet.create({
     paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1,
   },
   closeBtn: { width: 36, alignItems: 'flex-start' },
+  starBtn: { width: 36, alignItems: 'flex-end' },
   headerTitle: { flex: 1, fontSize: 16, fontWeight: '700', textAlign: 'center' },
   scroll: { paddingBottom: 48 },
   image: { width: '100%', height: 220 },
@@ -574,6 +626,18 @@ const modal = StyleSheet.create({
   stepNumText: { color: '#fff', fontSize: 12, fontWeight: '700' },
   stepText: { flex: 1, fontSize: 15, lineHeight: 22 },
   sourceUrl: { fontSize: 12, textAlign: 'center', padding: 16 },
+  stepperRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    marginHorizontal: 20, marginBottom: 8,
+  },
+  stepperLabel: { fontSize: 14, fontWeight: '600' },
+  stepper: {
+    flexDirection: 'row', alignItems: 'center',
+    borderWidth: 1, borderRadius: 10, overflow: 'hidden',
+  },
+  stepperBtn: { paddingHorizontal: 14, paddingVertical: 8 },
+  stepperBtnText: { fontSize: 20, fontWeight: '300', lineHeight: 24 },
+  stepperValue: { fontSize: 15, fontWeight: '700', minWidth: 48, textAlign: 'center' },
 })
 
 const nutri = StyleSheet.create({

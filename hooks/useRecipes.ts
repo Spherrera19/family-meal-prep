@@ -24,6 +24,7 @@ export type Recipe = {
   sugar_g?: number
   sodium_mg?: number
   saturated_fat_g?: number
+  show_in_tray: boolean
   created_at: string
 }
 
@@ -183,6 +184,12 @@ export function useRecipes(familyId: string | null) {
     if (error) { setError(error.message); fetchRecipes() }
   }
 
+  async function toggleTrayVisibility(id: string, visible: boolean) {
+    setRecipes(prev => prev.map(r => r.id === id ? { ...r, show_in_tray: visible } : r))
+    const { error } = await supabase.from('recipes').update({ show_in_tray: visible }).eq('id', id)
+    if (error) { setError(error.message); fetchRecipes() }
+  }
+
   async function addIngredientsToShoppingList(recipe: Recipe): Promise<number> {
     if (!session || !familyId || !recipe.ingredients.length) return 0
 
@@ -226,5 +233,5 @@ export function useRecipes(familyId: string | null) {
     return added
   }
 
-  return { recipes, loading, importing, error, importRecipe, saveManualRecipe, deleteRecipe, addIngredientsToShoppingList }
+  return { recipes, loading, importing, error, importRecipe, saveManualRecipe, deleteRecipe, toggleTrayVisibility, addIngredientsToShoppingList }
 }
