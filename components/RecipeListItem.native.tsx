@@ -3,6 +3,7 @@ import { View, Text, Image, TouchableOpacity, StyleSheet } from 'react-native'
 import Animated, {
   FadeInDown,
   FadeOut,
+  LinearTransition,
   useSharedValue,
   useAnimatedStyle,
   withRepeat,
@@ -15,7 +16,7 @@ import * as Haptics from 'expo-haptics'
 import type { Recipe } from '@/hooks/useRecipes'
 import type { AppTheme } from '@/constants/theme'
 
-const CHIP_W = 100
+const CHIP_W = 115
 
 type Props = {
   recipe: Recipe
@@ -112,6 +113,7 @@ export const RecipeListItem = React.memo(function RecipeListItem({
       <Animated.View
         entering={FadeInDown.duration(220)}
         exiting={FadeOut.duration(180)}
+        layout={LinearTransition.springify()}
         style={[styles.outer, jiggleStyle]}
       >
         <TouchableOpacity

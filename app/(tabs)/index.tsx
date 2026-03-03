@@ -620,11 +620,11 @@ const styles = StyleSheet.create({
   trayEditText:   { fontSize: 13, fontWeight: '500' },
   trayDoneText:   { fontSize: 13, fontWeight: '700', color: '#2563eb' },
 
-  recipeThumb:           { width: 100, height: 70 },
-  recipeThumbPlaceholder:{ width: 100, height: 70, justifyContent: 'center', alignItems: 'center' },
-  recipeChipTitle:       { fontSize: 11, fontWeight: '600', padding: 6, textAlign: 'center', lineHeight: 15 },
+  recipeThumb:           { width: 115, height: 70 },
+  recipeThumbPlaceholder:{ width: 115, height: 70, justifyContent: 'center', alignItems: 'center' },
+  recipeChipTitle:       { fontSize: 11, fontWeight: '600', padding: 6, textAlign: 'center', lineHeight: 15, flexShrink: 1 },
 
-  dragOverlay: { position: 'absolute', width: 100, borderRadius: 12, borderWidth: 2, borderColor: '#2563eb', backgroundColor: '#eff6ff', overflow: 'hidden', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.25, shadowRadius: 12, elevation: 12 },
+  dragOverlay: { position: 'absolute', width: 115, borderRadius: 12, borderWidth: 2, borderColor: '#2563eb', backgroundColor: '#eff6ff', overflow: 'hidden', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.25, shadowRadius: 12, elevation: 12 },
 
   modalOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.4)' },
   modalSheet:   { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40, gap: 12 },

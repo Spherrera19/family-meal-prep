@@ -57,7 +57,7 @@ export function useRecipes(familyId: string | null) {
     if (!session) return
 
     const channel = supabase
-      .channel(`recipes-realtime-${familyId}`)
+      .channel(`recipes-changes-${Math.random()}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'recipes' },
@@ -66,7 +66,7 @@ export function useRecipes(familyId: string | null) {
       .subscribe()
 
     return () => { supabase.removeChannel(channel) }
-  }, [session, familyId, fetchRecipes])
+  }, [session, fetchRecipes])
 
   // Call the edge function then save the result
   async function importRecipe(url: string): Promise<Recipe | null> {
