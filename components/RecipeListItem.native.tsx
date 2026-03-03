@@ -47,7 +47,7 @@ export const RecipeListItem = React.memo(function RecipeListItem({
   const longPress = useMemo(
     () => Gesture.LongPress()
       .minDuration(500)
-      .onActivated(() => {
+      .onStart(() => {
         'worklet'
         runOnJS(fireHapticAndEdit)()
       }),
