@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/context/AuthContext'
+import { parseIngredientString } from '@/utils/parseIngredient'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -50,6 +51,22 @@ export function useRecipes(familyId: string | null) {
 
   useEffect(() => { fetchRecipes() }, [fetchRecipes])
 
+  // Real-time subscription — refetch on any change to the recipes table
+  useEffect(() => {
+    if (!session) return
+
+    const channel = supabase
+      .channel('recipes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'recipes' },
+        () => { fetchRecipes() }
+      )
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
+  }, [session, fetchRecipes])
+
   // Call the edge function then save the result
   async function importRecipe(url: string): Promise<Recipe | null> {
     if (!session) return null
@@ -60,6 +77,10 @@ export function useRecipes(familyId: string | null) {
     const { data: parsed, error: fnError } = await supabase.functions.invoke('parse-recipe', {
       body: { url },
     })
+
+    console.log('[importRecipe] raw parsed:', JSON.stringify(parsed, null, 2))
+    console.log('[importRecipe] fnError:', fnError)
+
     if (fnError || parsed?.error) {
       setError(parsed?.error ?? fnError?.message ?? 'Failed to parse recipe')
       setImporting(false)
@@ -94,6 +115,7 @@ export function useRecipes(familyId: string | null) {
       .single()
 
     if (dbError) {
+      console.log('[importRecipe] dbError:', dbError.message, dbError.details)
       setError(dbError.message)
       setImporting(false)
       return null
@@ -162,23 +184,46 @@ export function useRecipes(familyId: string | null) {
   }
 
   async function addIngredientsToShoppingList(recipe: Recipe): Promise<number> {
-    if (!session || !familyId) return 0
-    if (!recipe.ingredients.length) return 0
+    if (!session || !familyId || !recipe.ingredients.length) return 0
 
-    const rows = recipe.ingredients.map(ingredient => ({
-      family_id: familyId,
-      name:      ingredient,
-      added_by:  session.user.id,
-    }))
-
-    // Insert all, ignoring duplicates via the unique index
-    const { data, error } = await supabase
+    // Fetch current list to detect duplicates and combine quantities
+    const { data: existing } = await supabase
       .from('shopping_items')
-      .upsert(rows, { onConflict: 'family_id,name', ignoreDuplicates: true })
-      .select('id')
+      .select('id, name, quantity')
+      .eq('family_id', familyId)
 
-    if (error) { setError(error.message); return 0 }
-    return data?.length ?? 0
+    const existingMap = new Map(
+      (existing ?? []).map((i: { id: string; name: string; quantity: string | null }) => [
+        i.name.toLowerCase().trim(),
+        i,
+      ])
+    )
+
+    let added = 0
+    for (const ingredient of recipe.ingredients) {
+      const { qty, unit, foodName } = parseIngredientString(ingredient)
+      if (!foodName) continue
+      const newQty = [qty, unit].filter(Boolean).join(' ')
+
+      const match = existingMap.get(foodName)
+      if (match) {
+        const combined = match.quantity ? `${match.quantity}, ${newQty}` : newQty
+        await supabase
+          .from('shopping_items')
+          .update({ quantity: combined })
+          .eq('id', match.id)
+      } else {
+        await supabase.from('shopping_items').insert({
+          family_id: familyId,
+          name:      foodName,
+          quantity:  newQty || null,
+          added_by:  session.user.id,
+        })
+        existingMap.set(foodName, { id: '', name: foodName, quantity: newQty })
+        added++
+      }
+    }
+    return added
   }
 
   return { recipes, loading, importing, error, importRecipe, saveManualRecipe, deleteRecipe, addIngredientsToShoppingList }

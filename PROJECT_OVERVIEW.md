@@ -158,7 +158,7 @@ created_at  timestamptz
 - `create_family(name text)` — atomically inserts family + member (bypasses RLS INSERT→SELECT check)
 - `join_family_by_code(code text)` — finds family by code, inserts member
 - All SECURITY DEFINER functions use `SET search_path = ''` (migration 009) to prevent search_path injection
-- Realtime enabled on `shopping_items`
+- Realtime enabled on `shopping_items` and `recipes`
 
 ### Migration History
 
@@ -223,10 +223,12 @@ family-meal-prep/
 │       ├── shopping.tsx     # Shopping List screen
 │       └── nutrition.tsx    # Nutrition tracking screen
 ├── components/
-│   ├── GestureRoot.tsx          # Web: plain View
-│   ├── GestureRoot.native.tsx   # Native: GestureHandlerRootView
-│   ├── DragGestureWrap.tsx      # Web: passthrough fragment
-│   └── DragGestureWrap.native.tsx  # Native: GestureDetector
+│   ├── GestureRoot.tsx              # Web: plain View
+│   ├── GestureRoot.native.tsx       # Native: GestureHandlerRootView
+│   ├── DragGestureWrap.tsx          # Web: passthrough fragment
+│   ├── DragGestureWrap.native.tsx   # Native: GestureDetector
+│   ├── RecipeListItem.tsx           # Recipe dock chip — web (static X badge in edit mode)
+│   └── RecipeListItem.native.tsx    # Recipe dock chip — native (jiggle + drag gesture)
 ├── context/
 │   └── AuthContext.tsx      # session, loading, signOut via useAuth()
 ├── hooks/
@@ -263,15 +265,20 @@ family-meal-prep/
 - **Templates**: quick-add grid with 7 predefined slot types
 - **Custom slots**: free-text input, deduplication enforced
 - **Context-driven icons**: `getSlotStyle(name)` maps 20+ keywords to emoji + color
+- **Daily macro bar**: real-time calories/protein/carbs/fat progress vs. user goals for the selected day
 - **Drag-and-drop** (native): long-press recipe card → drag onto meal slot → recipe assigned
-- **Tap-to-assign** (web): tap recipe to arm it, tap slot to place it
+- **Tap-to-assign** (web): tap recipe to arm it, armed banner confirms selection, tap slot to place it
 - **Overlay card**: animated ghost card follows finger during drag (Reanimated)
+- **Collapsible recipe dock**: chevron button collapses/expands tray with `withTiming` animation; `isCollapsed` React state drives `trayAnim` shared value via `useEffect` (not direct mutation)
+- **Jiggle edit mode** (native): "Edit" button in tray header enters iOS-style jiggle (`withRepeat`/`withSequence`); each card shows an X badge for deletion; gestures disabled during edit mode
+- **Edit mode** (web): static X badge on each card, no animation
 
 ### Recipes Screen (`app/(tabs)/two.tsx`)
 
 - URL import bar: paste any cooking URL → edge function parses → saves to DB
 - Recipe cards with image, title, ingredients count
 - Detail modal: full ingredients + instructions
+- **Serving size multiplier**: stepper (0.5 steps, min 0.5) scales all 8 nutrients; integer columns (`calories`, `protein_g`, `carbs_g`, `fat_g`, `sodium_mg`) use `Math.round`, decimal columns (`fiber_g`, `sugar_g`, `saturated_fat_g`) use `.toFixed(1)`
 - "Add to shopping list" button: upserts all ingredients to family shopping list
 - Delete recipe with platform-appropriate button (Android/web fix in commit bf3ded1)
 
@@ -279,7 +286,10 @@ family-meal-prep/
 
 - **Family setup**: create family (generates 6-char code) or join with code
 - **Real-time sync**: Supabase Realtime subscription
-- Check/uncheck items, delete items, optimistic UI
+- Check/uncheck items, delete individual items, optimistic UI
+- **Select all**: `checkAll()` in `useShoppingList` bulk-marks all items checked (optimistic + Supabase update); "Select all N items" footer button only visible when unchecked items exist
+- **Clear checked**: removes all checked items (existing); pairs naturally with "Select all" for a two-step bulk-delete flow
+- Estimated grocery total in footer (rough US averages via `utils/prices.ts`)
 
 ### Nutrition Screen (`app/(tabs)/nutrition.tsx`)
 
@@ -312,6 +322,7 @@ Critical architecture points:
 
 - `importRecipe(url)`: direct `fetch()` to edge function URL (not `supabase.functions.invoke`)
 - No auth headers needed (`verify_jwt: false`)
+- Supabase Realtime subscription on `recipes` table — calls `fetchRecipes()` on any `INSERT`/`UPDATE`/`DELETE`, enabling cross-tab and multi-user sync
 
 ### `useNutritionHistory.ts`
 
@@ -337,8 +348,11 @@ Critical architecture points:
 | `GestureRoot.tsx` | `GestureRoot.native.tsx` |
 | `DragGestureWrap.tsx` | `DragGestureWrap.native.tsx` |
 | `useDragAndDrop.ts` | `useDragAndDrop.native.ts` |
+| `components/RecipeListItem.tsx` | `components/RecipeListItem.native.tsx` |
 
-Metro bundler picks `.native.ts` over `.ts` on native platforms.
+Metro bundler picks `.native.ts(x)` over `.ts(x)` on native platforms.
+
+`RecipeListItem` split rationale: the native version adds `react-native-reanimated` jiggle animation and `react-native-gesture-handler` drag gesture — both of which crash the web bundle if imported directly.
 
 ---
 
@@ -375,13 +389,15 @@ supabase db push
 | Edge function HTTP 401 | Deploy with `verify_jwt: false`; remove auth headers |
 | Edge function non-2xx errors hidden | Return HTTP 200 always; put errors in body |
 | Bot detection on recipe sites | Use realistic Chrome User-Agent in edge function |
-| RNGH crash on web bundle | Platform-specific file splitting (.native.ts) |
+| RNGH crash on web bundle | Platform-specific file splitting (.native.ts/tsx) |
 | Mobile drag crash | Move all JS ref reads to `runOnJS`; stabilize gesture with `useCallback`+`useMemo` |
 | Drag card appears below finger | Measure screen View `pageX/pageY`; subtract from absolute coords |
 | Stale `onDrop` in worklet | `onDropRef.current = onDrop` on every render |
 | `invalid input syntax for type integer: "23.2"` | `protein_g`/`carbs_g`/`fat_g` are INTEGER columns — always use `Math.round` / `parseNutritionInt` |
 | SECURITY DEFINER search_path injection | All such functions use `SET search_path = ''` (migration 009) |
 | Slow RLS policies | Use `(select auth.uid())` pattern; add FK indexes (migration 010) |
+| `overflow: 'hidden'` crashes web Reanimated | Static CSS props must NOT go inside `useAnimatedStyle` worklets; put them in the static `style` array on the `Animated.View` |
+| `trayAnim.value` mutated inside `setState` callback | Drives animation via `useEffect` watching the state value instead — avoids mixing React scheduler with Reanimated worklet thread |
 
 ---
 
