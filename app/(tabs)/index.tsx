@@ -475,7 +475,7 @@ export default function MealPlanScreen() {
             ? <Image source={{ uri: draggedRecipe.image_url }} style={styles.recipeThumb} />
             : <View style={[styles.recipeThumbPlaceholder, { backgroundColor: '#e2e8f0' }]}><Text style={{ fontSize: 20 }}>🍽️</Text></View>
           }
-          <Text style={[styles.recipeChipTitle, { color: c.text }]} numberOfLines={2}>{draggedRecipe.title}</Text>
+          <Text style={[styles.recipeChipTitle, { color: c.text }]} numberOfLines={3}>{draggedRecipe.title}</Text>
         </Animated.View>
       )}
 

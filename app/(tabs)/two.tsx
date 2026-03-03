@@ -577,7 +577,7 @@ const styles = StyleSheet.create({
 })
 
 const card = StyleSheet.create({
-  container: { borderRadius: 14, borderWidth: 1, overflow: 'hidden', flexDirection: 'row', alignItems: 'center' },
+  container: { borderRadius: 14, borderWidth: 1, overflow: 'hidden', flexDirection: 'row', alignItems: 'stretch', minHeight: 90 },
   pressable: { flex: 1, flexDirection: 'row', alignItems: 'center' },
   image: { width: 90, height: 90 },
   body: { flex: 1, padding: 12, gap: 4 },

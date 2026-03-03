@@ -100,7 +100,7 @@ export const RecipeListItem = React.memo(function RecipeListItem({
           </View>
         )
       }
-      <Text style={[styles.title, { color: c.text }]} numberOfLines={2}>
+      <Text style={[styles.title, { color: c.text }]} numberOfLines={3}>
         {recipe.title}
       </Text>
       {(isArmed || isDragging) && <View style={styles.armedDot} />}

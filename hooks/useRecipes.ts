@@ -57,7 +57,7 @@ export function useRecipes(familyId: string | null) {
     if (!session) return
 
     const channel = supabase
-      .channel('recipes')
+      .channel(`recipes-realtime-${familyId}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'recipes' },
@@ -66,7 +66,7 @@ export function useRecipes(familyId: string | null) {
       .subscribe()
 
     return () => { supabase.removeChannel(channel) }
-  }, [session, fetchRecipes])
+  }, [session, familyId, fetchRecipes])
 
   // Call the edge function then save the result
   async function importRecipe(url: string): Promise<Recipe | null> {
@@ -111,6 +111,7 @@ export function useRecipes(familyId: string | null) {
         sugar_g:         parsed.sugar_g         ?? null,
         sodium_mg:       parsed.sodium_mg       ?? null,
         saturated_fat_g: parsed.saturated_fat_g ?? null,
+        show_in_tray:    true,
       })
       .select('*')
       .single()
@@ -168,6 +169,7 @@ export function useRecipes(familyId: string | null) {
         sugar_g:         fields.sugar_g         ?? null,
         sodium_mg:       fields.sodium_mg       ?? null,
         saturated_fat_g: fields.saturated_fat_g ?? null,
+        show_in_tray:    true,
       })
       .select('*')
       .single()
